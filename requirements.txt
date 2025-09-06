@@ -1,0 +1,11 @@
+Django==5.0.7
+psycopg2-binary==2.9.9
+redis==5.0.7
+celery==5.4.0
+djangorestframework==3.15.2
+python-dotenv==1.0.1
+gunicorn==21.2.0
+kafka-python==2.0.2
+clickhouse-connect==0.7.19
+requests==2.32.3
+whitenoise==6.7.0

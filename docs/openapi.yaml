@@ -1,0 +1,698 @@
+openapi: 3.0.3
+info:
+  title: Mini Sentry API
+  version: 0.7.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/health/:
+    get:
+      summary: Healthcheck
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+  /api/projects/:
+    get:
+      summary: List projects
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+    post:
+      summary: Create project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+  /api/events/:
+    get:
+      summary: List events
+      parameters:
+        - in: query
+          name: project
+          schema: { type: string }
+          description: Project slug filter
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+  /api/events/{id}/:
+    get:
+      summary: Retrieve event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+  /api/events/ingest/{project_slug}/:
+    post:
+      summary: Ingest event by project slug
+      parameters:
+        - in: path
+          name: project_slug
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventIngest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+  /api/events/ingest/token/{token}/:
+    post:
+      summary: Ingest event by project token
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventIngest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+  /api/events/clickhouse:
+    get:
+      summary: Query ClickHouse events
+      parameters:
+        - in: query
+          name: project
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClickHouseEvent'
+  /api/groups/:
+    get:
+      summary: List groups
+      parameters:
+        - in: query
+          name: project
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+  /api/groups/{id}/:
+    get:
+      summary: Retrieve group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+  /api/releases/:
+    get:
+      summary: List releases
+      parameters:
+        - in: query
+          name: project
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Release'
+    post:
+      summary: Create release
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project, version]
+              properties:
+                project: { type: integer }
+                version: { type: string }
+                environment: { type: string, default: production }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Release'
+  /api/releases/{id}/artifacts/:
+    get:
+      summary: List release artifacts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Artifact'
+    post:
+      summary: Upload artifact
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                content: { type: string }
+                content_type: { type: string, default: application/json }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artifact'
+  /api/symbolicate/:
+    post:
+      summary: Symbolicate frames or stack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project, release]
+              properties:
+                project: { type: string }
+                release: { type: string }
+                environment: { type: string }
+                frames:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Frame'
+                stack: { type: string, description: Raw stacktrace string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  frames:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SymbolicatedFrame'
+  /api/sessions/ingest/token/{token}/:
+    post:
+      summary: Ingest session by token
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionIngest'
+      responses:
+        '200': { description: Updated }
+        '201': { description: Created }
+  /api/releases/health/:
+    get:
+      summary: Release health summary
+      parameters:
+        - in: query
+          name: project
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HealthSummary'
+  /api/releases/health/series/:
+    get:
+      summary: Release health time series
+      parameters:
+        - in: query
+          name: project
+          required: true
+          schema: { type: string }
+        - in: query
+          name: range
+          schema: { type: string, example: 24h }
+        - in: query
+          name: interval
+          schema: { type: string, example: 5m }
+        - in: query
+          name: backend
+          schema: { type: string, example: ch }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HealthBucket'
+  /api/deployments/:
+    get:
+      summary: List deployments
+      parameters:
+        - in: query
+          name: project
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deployment'
+    post:
+      summary: Create deployment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeploymentCreate'
+      responses:
+        '201': { description: Created }
+  /api/alert-rules/:
+    get:
+      summary: List alert rules
+      parameters:
+        - in: query
+          name: project
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlertRule'
+    post:
+      summary: Create alert rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleCreate'
+      responses:
+        '201': { description: Created }
+  /api/alert-rules/{id}/:
+    get:
+      summary: Retrieve alert rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRule'
+    patch:
+      summary: Update alert rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleUpdate'
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Delete alert rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Deleted }
+  /api/alert-rules/{id}/snooze/:
+    post:
+      summary: Snooze alerts for a group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group]
+              properties:
+                group: { type: integer }
+                minutes: { type: integer, default: 60 }
+      responses:
+        '200': { description: OK }
+  /api/alert-rules/{id}/unsnooze/:
+    post:
+      summary: Unsnooze alerts for a group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group]
+              properties:
+                group: { type: integer }
+      responses:
+        '200': { description: OK }
+  /api/alert-rules/{id}/targets/:
+    get:
+      summary: List alert targets for a rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlertTarget'
+    post:
+      summary: Create alert target for a rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertTargetCreate'
+      responses:
+        '201': { description: Created }
+  /api/alert-rules/by-group/{group_id}:
+    get:
+      summary: List rules that apply to a group
+      parameters:
+        - in: path
+          name: group_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlertRule'
+components:
+  schemas:
+    Project:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        ingest_token: { type: string }
+        created_at: { type: string, format: date-time }
+    Event:
+      type: object
+      properties:
+        id: { type: integer }
+        project: { type: integer }
+        group: { type: integer, nullable: true }
+        message: { type: string }
+        level: { type: string, enum: [error, warning, info] }
+        payload: { type: object }
+        received_at: { type: string, format: date-time }
+        release: { type: integer, nullable: true }
+        environment: { type: string }
+        stack: { type: string, nullable: true }
+        symbolicated: { type: object }
+    EventIngest:
+      type: object
+      properties:
+        message: { type: string }
+        level: { type: string }
+        payload: { type: object }
+        release: { type: string }
+        environment: { type: string }
+        stack: { type: string }
+        frames:
+          type: array
+          items:
+            $ref: '#/components/schemas/Frame'
+    Frame:
+      type: object
+      properties:
+        function: { type: string }
+        file: { type: string }
+        line: { type: integer }
+        column: { type: integer }
+    SymbolicatedFrame:
+      allOf:
+        - $ref: '#/components/schemas/Frame'
+        - type: object
+          properties:
+            orig_file: { type: string }
+            orig_line: { type: integer }
+            orig_column: { type: integer }
+    ClickHouseEvent:
+      type: object
+      properties:
+        id: { type: integer }
+        project: { type: string }
+        level: { type: string }
+        fingerprint: { type: string }
+        title: { type: string }
+        message: { type: string }
+        received_at: { type: string }
+    Group:
+      type: object
+      properties:
+        id: { type: integer }
+        project: { type: integer }
+        title: { type: string }
+        level: { type: string }
+        count: { type: integer }
+        first_seen: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time }
+    Release:
+      type: object
+      properties:
+        id: { type: integer }
+        project: { type: integer }
+        version: { type: string }
+        environment: { type: string }
+        created_at: { type: string, format: date-time }
+        date_released: { type: string, format: date-time, nullable: true }
+    Artifact:
+      type: object
+      properties:
+        id: { type: integer }
+        release: { type: integer }
+        name: { type: string }
+        content: { type: string }
+        content_type: { type: string }
+        file_name: { type: string }
+        checksum: { type: string }
+        created_at: { type: string, format: date-time }
+    SessionIngest:
+      type: object
+      required: [session_id]
+      properties:
+        session_id: { type: string }
+        status: { type: string, enum: [init, ok, errored, crashed, exited], default: init }
+        user: { type: string }
+        duration_ms: { type: integer }
+        release: { type: string }
+        environment: { type: string }
+    HealthSummary:
+      type: object
+      properties:
+        version: { type: string }
+        environment: { type: string }
+        total_sessions: { type: integer }
+        crashed_sessions: { type: integer }
+        crash_free_rate: { type: number, format: float }
+    HealthBucket:
+      type: object
+      properties:
+        bucket: { type: string }
+        total: { type: integer }
+        crashed: { type: integer }
+    Deployment:
+      type: object
+      properties:
+        id: { type: integer }
+        project: { type: integer }
+        release: { type: integer }
+        environment: { type: string }
+        name: { type: string }
+        url: { type: string }
+        date_started: { type: string, format: date-time }
+        date_finished: { type: string, format: date-time, nullable: true }
+    DeploymentCreate:
+      type: object
+      required: [project, release, environment]
+      properties:
+        project: { type: integer }
+        release: { type: integer }
+        environment: { type: string }
+        name: { type: string }
+        url: { type: string }
+    AlertRule:
+      type: object
+      properties:
+        id: { type: integer }
+        project: { type: integer }
+        name: { type: string }
+        level: { type: string }
+        threshold_count: { type: integer }
+        threshold_window_minutes: { type: integer }
+        notify_interval_minutes: { type: integer }
+        rearm_after_minutes: { type: integer }
+        last_triggered_at: { type: string, format: date-time, nullable: true }
+        target_type: { type: string, enum: [email, webhook] }
+        target_value: { type: string }
+        active: { type: boolean }
+    AlertRuleCreate:
+      allOf:
+        - $ref: '#/components/schemas/AlertRule'
+    AlertRuleUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        level: { type: string }
+        threshold_count: { type: integer }
+        threshold_window_minutes: { type: integer }
+        notify_interval_minutes: { type: integer }
+        active: { type: boolean }
+    AlertTarget:
+      type: object
+      properties:
+        id: { type: integer }
+        rule: { type: integer }
+        target_type: { type: string, enum: [email, webhook] }
+        target_value: { type: string }
+        subject_template: { type: string }
+        body_template: { type: string }
+    AlertTargetCreate:
+      allOf:
+        - $ref: '#/components/schemas/AlertTarget'

@@ -1,0 +1,515 @@
+from rest_framework import viewsets, mixins, status
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+
+from django.db.models import F
+from django.utils import timezone
+
+from .models import Event, Project, Group, Release, AlertRule, AlertTarget, Session, ReleaseDeployment
+from .serializers import (
+    EventSerializer,
+    ProjectSerializer,
+    GroupSerializer,
+    ReleaseSerializer,
+    ArtifactSerializer,
+    AlertRuleSerializer,
+    AlertTargetSerializer,
+    SessionSerializer,
+    ReleaseDeploymentSerializer,
+)
+from django.conf import settings
+from .tasks import process_event
+from .grouping import compute_fingerprint
+from .ratelimit import check_rate_limit
+from .kafka import publish_event
+from .ch import query_events, query_session_series
+from .symbolication import symbolicate_frames_for_release
+
+
+class ProjectViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+    queryset = Project.objects.all().order_by("-id")
+    serializer_class = ProjectSerializer
+
+
+class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    queryset = Event.objects.all().order_by("-received_at")
+    serializer_class = EventSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        project = self.request.query_params.get("project")
+        if project:
+            qs = qs.filter(project__slug=project)
+        return qs
+
+    @action(detail=False, methods=["post"], url_path="ingest/(?P<project_slug>[^/.]+)")
+    def ingest(self, request, project_slug=None):
+        project = get_object_or_404(Project, slug=project_slug)
+        # Rate limit by project slug
+        allowed, remaining = check_rate_limit(f"project:{project.slug}", settings.RATE_LIMIT_EVENTS_PER_MINUTE)
+        if not allowed:
+            return Response({"detail": "Rate limit exceeded"}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        payload = request.data or {}
+        message = payload.get("message", "")
+        level = payload.get("level", "error")
+        release = self._get_or_create_release(project, payload)
+        env = payload.get("environment", "production")
+        stack = payload.get("stack")
+        frames = payload.get("frames")
+        group = self._get_or_create_group(project, message, level)
+        event = Event.objects.create(
+            project=project,
+            group=group,
+            message=message,
+            level=level,
+            payload=payload,
+            release=release,
+            environment=env,
+            stack=stack,
+        )
+        # Inline symbolication (best-effort)
+        try:
+            if release and (frames or stack):
+                sym = symbolicate_frames_for_release(release, frames, stack)
+                event.symbolicated = {"frames": sym}
+                event.save(update_fields=["symbolicated"])
+        except Exception:
+            pass
+        # Kick off async processing (stub)
+        try:
+            process_event.delay(event.id)
+        except Exception:
+            # If Celery broker is not ready, we still ingest synchronously
+            from .alerts import evaluate_alerts_for_event
+            try:
+                evaluate_alerts_for_event(event)
+            except Exception:
+                pass
+        # Publish to Kafka for ClickHouse pipeline
+        try:
+            publish_event(
+                {
+                    "id": event.id,
+                    "project": project.slug,
+                    "message": message,
+                    "level": level,
+                    "fingerprint": group.fingerprint if group else None,
+                    "title": group.title if group else None,
+                    "received_at": event.received_at.isoformat(),
+                }
+            )
+        except Exception:
+            pass
+        return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="clickhouse")
+    def clickhouse_events(self, request):
+        project_slug = request.query_params.get("project")
+        limit = int(request.query_params.get("limit", "100"))
+        if not project_slug:
+            return Response({"detail": "project required"}, status=400)
+        try:
+            rows = query_events(project_slug, limit)
+        except Exception as e:
+            return Response({"detail": f"clickhouse error: {e}"}, status=500)
+        # Return as plain list
+        data = [
+            {
+                "id": r[0],
+                "project": r[1],
+                "level": r[2],
+                "fingerprint": r[3],
+                "title": r[4],
+                "message": r[5],
+                "received_at": str(r[6]),
+            }
+            for r in rows
+        ]
+        return Response(data)
+
+    @action(detail=False, methods=["post"], url_path="ingest/token/(?P<token>[^/.]+)")
+    def ingest_with_token(self, request, token=None):
+        project = get_object_or_404(Project, ingest_token=token)
+        # Rate limit by token
+        allowed, remaining = check_rate_limit(f"token:{project.ingest_token}", settings.RATE_LIMIT_EVENTS_PER_MINUTE)
+        if not allowed:
+            return Response({"detail": "Rate limit exceeded"}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        payload = request.data or {}
+        message = payload.get("message", "")
+        level = payload.get("level", "error")
+        release = self._get_or_create_release(project, payload)
+        env = payload.get("environment", "production")
+        stack = payload.get("stack")
+        frames = payload.get("frames")
+        group = self._get_or_create_group(project, message, level)
+        event = Event.objects.create(
+            project=project,
+            group=group,
+            message=message,
+            level=level,
+            payload=payload,
+            release=release,
+            environment=env,
+            stack=stack,
+        )
+        try:
+            if release and (frames or stack):
+                sym = symbolicate_frames_for_release(release, frames, stack)
+                event.symbolicated = {"frames": sym}
+                event.save(update_fields=["symbolicated"])
+        except Exception:
+            pass
+        try:
+            process_event.delay(event.id)
+        except Exception:
+            from .alerts import evaluate_alerts_for_event
+            try:
+                evaluate_alerts_for_event(event)
+            except Exception:
+                pass
+        try:
+            publish_event(
+                {
+                    "id": event.id,
+                    "project": project.slug,
+                    "message": message,
+                    "level": level,
+                    "fingerprint": group.fingerprint if group else None,
+                    "title": group.title if group else None,
+                    "received_at": event.received_at.isoformat(),
+                }
+            )
+        except Exception:
+            pass
+        return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
+
+    def _get_or_create_release(self, project: Project, payload: dict):
+        version = (payload or {}).get("release")
+        environment = (payload or {}).get("environment", "production")
+        if not version:
+            return None
+        rel, _ = Release.objects.get_or_create(
+            project=project,
+            version=version,
+            environment=environment,
+        )
+        return rel
+
+    def _get_or_create_group(self, project: Project, message: str, level: str) -> Group:
+        fingerprint, title = compute_fingerprint(message, level)
+        now = timezone.now()
+        group, created = Group.objects.get_or_create(
+            project=project, fingerprint=fingerprint,
+            defaults={"title": title, "level": level, "first_seen": now, "last_seen": now, "count": 1},
+        )
+        if not created:
+            Group.objects.filter(id=group.id).update(
+                last_seen=now,
+                level=level,
+                count=F("count") + 1,
+            )
+            group.refresh_from_db(fields=["count", "last_seen", "level"])
+        return group
+
+
+class GroupViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    serializer_class = GroupSerializer
+    queryset = Group.objects.all().order_by("-last_seen")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        project = self.request.query_params.get("project")
+        if project:
+            qs = qs.filter(project__slug=project)
+        return qs
+
+
+class ReleaseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = ReleaseSerializer
+    queryset = Release.objects.all().order_by("-created_at")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        project = self.request.query_params.get("project")
+        if project:
+            qs = qs.filter(project__slug=project)
+        return qs
+
+    @action(detail=True, methods=["get", "post"], url_path="artifacts")
+    def artifacts(self, request, pk=None):
+        release = self.get_object()
+        if request.method == "GET":
+            artifacts = release.artifacts.all().order_by("-created_at")
+            return Response(ArtifactSerializer(artifacts, many=True).data)
+        # POST create artifact (expects JSON body with name, content, content_type)
+        data = request.data or {}
+        payload = {
+            "release": release.id,
+            "name": data.get("name", "artifact.json"),
+            "content": data.get("content", "{}"),
+            "content_type": data.get("content_type", "application/json"),
+        }
+        # Derive file_name/checksum if possible
+        import hashlib, json as _json
+        try:
+            payload["checksum"] = hashlib.sha256(payload["content"].encode("utf-8")).hexdigest()
+        except Exception:
+            pass
+        try:
+            obj = _json.loads(payload["content"]) if isinstance(payload["content"], str) else None
+            if isinstance(obj, dict):
+                if obj.get("file"):
+                    payload["file_name"] = str(obj.get("file"))
+        except Exception:
+            pass
+        serializer = ArtifactSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=201)
+
+
+class SymbolicateView(APIView):
+    def post(self, request):
+        data = request.data or {}
+        project_slug = data.get("project")
+        version = data.get("release")
+        environment = data.get("environment", "production")
+        frames = data.get("frames")
+        stack = data.get("stack")
+        project = get_object_or_404(Project, slug=project_slug)
+        release = get_object_or_404(Release, project=project, version=version, environment=environment)
+        out = symbolicate_frames_for_release(release, frames, stack)
+        return Response({"frames": out})
+
+
+class AlertRuleViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = AlertRuleSerializer
+    queryset = AlertRule.objects.all().order_by("-id")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        project = self.request.query_params.get("project")
+        if project:
+            qs = qs.filter(project__slug=project)
+        return qs
+
+    @action(detail=True, methods=["post"], url_path="snooze")
+    def snooze(self, request, pk=None):
+        from django.utils import timezone
+        rule = self.get_object()
+        group_id = request.data.get("group")
+        minutes = int(request.data.get("minutes", 60))
+        if not group_id:
+            return Response({"detail": "group required"}, status=400)
+        group = get_object_or_404(Group, id=group_id, project=rule.project)
+        until = timezone.now() + timezone.timedelta(minutes=minutes)
+        from .models import AlertState
+        AlertState.objects.update_or_create(rule=rule, group=group, defaults={"suppress_until": until})
+        return Response({"ok": True, "suppress_until": until.isoformat()})
+
+    @action(detail=True, methods=["post"], url_path="unsnooze")
+    def unsnooze(self, request, pk=None):
+        rule = self.get_object()
+        group_id = request.data.get("group")
+        if not group_id:
+            return Response({"detail": "group required"}, status=400)
+        group = get_object_or_404(Group, id=group_id, project=rule.project)
+        from .models import AlertState
+        AlertState.objects.filter(rule=rule, group=group).update(suppress_until=None)
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["get", "post"], url_path="targets")
+    def targets(self, request, pk=None):
+        rule = self.get_object()
+        if request.method == "GET":
+            return Response(AlertTargetSerializer(rule.targets.all(), many=True).data)
+        # POST create target
+        data = request.data or {}
+        data["rule"] = rule.id
+        ser = AlertTargetSerializer(data=data)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data, status=201)
+
+    @action(detail=False, methods=["get"], url_path="by-group/(?P<group_id>[^/.]+)")
+    def by_group(self, request, group_id=None):
+        group = get_object_or_404(Group, id=group_id)
+        rules = AlertRule.objects.filter(project=group.project).order_by("-id")
+        return Response(AlertRuleSerializer(rules, many=True).data)
+
+
+class SessionIngestView(APIView):
+    def post(self, request, token: str):
+        project = get_object_or_404(Project, ingest_token=token)
+        payload = request.data or {}
+        version = payload.get("release")
+        environment = payload.get("environment", "production")
+        sess_id = payload.get("session_id")
+        status = payload.get("status", "init")
+        duration_ms = int(payload.get("duration_ms", 0) or 0)
+        user = payload.get("user", "")
+        if not sess_id:
+            return Response({"detail": "session_id required"}, status=400)
+        release = None
+        if version:
+            release, _ = Release.objects.get_or_create(project=project, version=version, environment=environment)
+        obj, created = Session.objects.get_or_create(
+            project=project, session_id=sess_id,
+            defaults={
+                "release": release,
+                "environment": environment,
+                "status": status,
+                "duration_ms": duration_ms,
+                "user": user,
+            }
+        )
+        if not created:
+            obj.release = release or obj.release
+            obj.environment = environment
+            obj.status = status
+            obj.duration_ms = duration_ms or obj.duration_ms
+            obj.user = user or obj.user
+            obj.updated_at = timezone.now()
+            obj.save()
+        # Publish to Kafka for ClickHouse rollups
+        try:
+            from .kafka import publish_session
+            publish_session({
+                "project": project.slug,
+                "release": version or "",
+                "environment": environment,
+                "status": status,
+                "session_id": sess_id,
+                "user": user,
+                "duration_ms": duration_ms,
+                "started_at": (obj.started_at or timezone.now()).isoformat(),
+            })
+        except Exception:
+            pass
+        return Response(SessionSerializer(obj).data, status=201 if created else 200)
+
+
+class ReleaseHealthView(APIView):
+    def get(self, request):
+        from django.db.models import Count, Q
+        project_slug = request.query_params.get("project")
+        if not project_slug:
+            return Response({"detail": "project required"}, status=400)
+        project = get_object_or_404(Project, slug=project_slug)
+        qs = Session.objects.filter(project=project)
+        agg = (
+            qs.values("release__version", "environment")
+            .annotate(total=Count("id"), crashed=Count("id", filter=Q(status="crashed")))
+            .order_by("-total")
+        )
+        out = []
+        for row in agg:
+            total = row["total"] or 0
+            crashed = row["crashed"] or 0
+            crash_free = 100.0 if total == 0 else round(100.0 * (total - crashed) / total, 2)
+            out.append(
+                {
+                    "version": row["release__version"],
+                    "environment": row["environment"],
+                    "total_sessions": total,
+                    "crashed_sessions": crashed,
+                    "crash_free_rate": crash_free,
+                }
+            )
+        return Response(out)
+
+
+class ReleaseHealthSeriesView(APIView):
+    def get(self, request):
+        from django.db import connection
+        project_slug = request.query_params.get("project")
+        if not project_slug:
+            return Response({"detail": "project required"}, status=400)
+        project = get_object_or_404(Project, slug=project_slug)
+        env = request.query_params.get("environment")
+        version = request.query_params.get("version")
+        rng = request.query_params.get("range", "24h")  # e.g., 1h, 24h, 7d
+        interval = request.query_params.get("interval", "5m")  # 1m,5m,1h
+        backend = request.query_params.get("backend", "pg")
+
+        def parse_range(s: str):
+            if s.endswith('h'):
+                return int(s[:-1]) * 60
+            if s.endswith('d'):
+                return int(s[:-1]) * 60 * 24
+            if s.endswith('m'):
+                return int(s[:-1])
+            return 60
+
+        def parse_bucket(s: str):
+            if s.endswith('h'):
+                return ('hour', int(s[:-1]))
+            if s.endswith('m'):
+                return ('minute', int(s[:-1]))
+            if s.endswith('d'):
+                return ('day', int(s[:-1]))
+            return ('minute', 5)
+
+        minutes = parse_range(rng)
+        unit, step = parse_bucket(interval)
+
+        if backend == 'ch':
+            try:
+                rows = query_session_series(project.slug, minutes=minutes, bucket=interval)
+                out = [
+                    {"bucket": str(r[0]), "total": int(r[1]), "crashed": int(r[2])}
+                    for r in rows
+                ]
+                return Response(out)
+            except Exception as e:
+                return Response({"detail": f"clickhouse error: {e}"}, status=500)
+
+        where = ["project_id = %s", "started_at >= NOW() - INTERVAL '%s minutes'"]
+        params = [project.id, minutes]
+        if env:
+            where.append("environment = %s")
+            params.append(env)
+        if version:
+            where.append("(SELECT version FROM events_release WHERE id = release_id) = %s")
+            params.append(version)
+
+        # Build date_trunc unit
+        trunc_unit = 'minute' if unit == 'minute' else ('hour' if unit == 'hour' else 'day')
+        sql = f"""
+            SELECT date_trunc('{trunc_unit}', started_at) AS bucket,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN status = 'crashed' THEN 1 ELSE 0 END) AS crashed
+            FROM events_session
+            WHERE {' AND '.join(where)}
+            GROUP BY 1
+            ORDER BY 1
+        """
+        with connection.cursor() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+        out = [
+            {"bucket": r[0].isoformat(), "total": int(r[1]), "crashed": int(r[2])}
+            for r in rows
+        ]
+        return Response(out)
+
+
+class DeploymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = ReleaseDeploymentSerializer
+    queryset = ReleaseDeployment.objects.all().order_by("-date_started")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        project = self.request.query_params.get("project")
+        if project:
+            qs = qs.filter(project__slug=project)
+        return qs

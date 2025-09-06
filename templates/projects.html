@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+  <h2>Projects</h2>
+  <form method="post" class="inline">{% csrf_token %}
+    <input type="text" name="name" placeholder="Project name" required />
+    <input type="text" name="slug" placeholder="Slug (optional)" />
+    <button type="submit">Create</button>
+  </form>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Slug</th><th>Ingest Token</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+        <tr>
+          <td>{{ p.name }}</td>
+          <td><a href="/projects/{{ p.slug }}/">{{ p.slug }}</a></td>
+          <td><code>{{ p.ingest_token }}</code></td>
+          <td><a href="/projects/{{ p.slug }}/">View events</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="muted">No projects yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
+

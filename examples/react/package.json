@@ -1,0 +1,24 @@
+{
+  "name": "mini-sentry-react-example",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "upload-sourcemap": "node upload_sourcemap.mjs"
+  },
+  "dependencies": {
+    "@mini-sentry/client": "file:../../packages/mini-sentry-client",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "typescript": "5.4.5",
+    "vite": "5.4.0"
+  }
+}

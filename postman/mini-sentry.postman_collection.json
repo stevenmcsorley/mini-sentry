@@ -1,0 +1,153 @@
+{
+  "info": {
+    "name": "Mini Sentry API",
+    "description": "Requests for the Mini Sentry-like stack",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {"method": "GET", "url": "{{base_url}}/api/health/"}
+    },
+    {
+      "name": "Projects List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/projects/"}
+    },
+    {
+      "name": "Project Create",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"name\": \"My App\",\n  \"slug\": \"my-app\"\n}"},
+        "url": "{{base_url}}/api/projects/"
+      }
+    },
+    {
+      "name": "Events List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/events/?project=my-app"}
+    },
+    {
+      "name": "Event Ingest (token)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"message\": \"Example error\",\n  \"level\": \"error\",\n  \"release\": \"1.0.0\",\n  \"environment\": \"production\"\n}"},
+        "url": "{{base_url}}/api/events/ingest/token/{{token}}/"
+      }
+    },
+    {
+      "name": "Groups List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/groups/?project=my-app"}
+    },
+    {
+      "name": "Releases List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/releases/?project=my-app"}
+    },
+    {
+      "name": "Release Create",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"project\": 1,\n  \"version\": \"1.0.0\",\n  \"environment\": \"production\"\n}"},
+        "url": "{{base_url}}/api/releases/"
+      }
+    },
+    {
+      "name": "Artifacts List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/releases/{{release_id}}/artifacts/"}
+    },
+    {
+      "name": "Artifact Upload (sourcemap)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"name\": \"app.js.map\",\n  \"content\": \"{\\\"version\\\":3,\\\"file\\\":\\\"app.js\\\",\\\"sources\\\":[\\\"app.tsx\\\"],\\\"names\\\":[],\\\"mappings\\\":\\\";;;;;;;;;;AAAA\"}\",\n  \"content_type\": \"application/json\"\n}"},
+        "url": "{{base_url}}/api/releases/{{release_id}}/artifacts/"
+      }
+    },
+    {
+      "name": "Symbolicate (stack)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"project\": \"my-app\",\n  \"release\": \"1.0.0\",\n  \"environment\": \"production\",\n  \"stack\": \"Error: oops\\n at t (http://localhost/app.js:10:120)\"\n}"},
+        "url": "{{base_url}}/api/symbolicate/"
+      }
+    },
+    {
+      "name": "Sessions Ingest",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"session_id\": \"s1\",\n  \"status\": \"ok\",\n  \"release\": \"1.0.0\",\n  \"environment\": \"production\",\n  \"user\": \"u1\",\n  \"duration_ms\": 1200\n}"},
+        "url": "{{base_url}}/api/sessions/ingest/token/{{token}}/"
+      }
+    },
+    {
+      "name": "Health Summary",
+      "request": {"method": "GET", "url": "{{base_url}}/api/releases/health/?project=my-app"}
+    },
+    {
+      "name": "Health Series (PG)",
+      "request": {"method": "GET", "url": "{{base_url}}/api/releases/health/series/?project=my-app&range=24h&interval=5m"}
+    },
+    {
+      "name": "Health Series (CH)",
+      "request": {"method": "GET", "url": "{{base_url}}/api/releases/health/series/?project=my-app&range=24h&interval=5m&backend=ch"}
+    },
+    {
+      "name": "Deployments List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/deployments/?project=my-app"}
+    },
+    {
+      "name": "Deployment Create",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"project\": 1,\n  \"release\": 1,\n  \"environment\": \"production\",\n  \"name\": \"Deploy #1\",\n  \"url\": \"https://example.com\"\n}"},
+        "url": "{{base_url}}/api/deployments/"
+      }
+    },
+    {
+      "name": "Alert Rules List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/alert-rules/?project=my-app"}
+    },
+    {
+      "name": "Alert Rule Create",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"project\": 1,\n  \"name\": \"High error volume\",\n  \"level\": \"error\",\n  \"threshold_count\": 10,\n  \"threshold_window_minutes\": 5,\n  \"notify_interval_minutes\": 60,\n  \"target_type\": \"email\",\n  \"target_value\": \"alerts@example.test\"\n}"},
+        "url": "{{base_url}}/api/alert-rules/"
+      }
+    },
+    {
+      "name": "Alert Rule Snooze",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"group\": 1,\n  \"minutes\": 60\n}"},
+        "url": "{{base_url}}/api/alert-rules/{{rule_id}}/snooze/"
+      }
+    },
+    {
+      "name": "Alert Targets List",
+      "request": {"method": "GET", "url": "{{base_url}}/api/alert-rules/{{rule_id}}/targets/"}
+    },
+    {
+      "name": "Alert Target Create",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"target_type\": \"email\",\n  \"target_value\": \"alerts@example.test\"\n}"},
+        "url": "{{base_url}}/api/alert-rules/{{rule_id}}/targets/"
+      }
+    }
+  ],
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8000"},
+    {"key": "token", "value": "<PROJECT_TOKEN>"},
+    {"key": "release_id", "value": "1"},
+    {"key": "rule_id", "value": "1"}
+  ]
+}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+  <p><a href="/">← Projects</a></p>
+  <h2>Events for {{ project.name }} <span class="muted">({{ project.slug }})</span></h2>
+  <p>
+    Send events via slug:
+    <code>POST /api/events/ingest/{{ project.slug }}/</code>
+  </p>
+  <p>
+    Or via token:
+    <code>POST /api/events/ingest/token/{{ project.ingest_token }}/</code>
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Level</th><th>Message</th></tr>
+    </thead>
+    <tbody>
+      {% for e in events %}
+        <tr>
+          <td class="muted">{{ e.received_at }}</td>
+          <td><span class="label {{ e.level }}">{{ e.level }}</span></td>
+          <td>{{ e.message }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3" class="muted">No events yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <h3>Groups</h3>
+  <table>
+    <thead>
+      <tr><th>Last Seen</th><th>Level</th><th>Title</th><th>Count</th></tr>
+    </thead>
+    <tbody>
+      {% for g in groups %}
+        <tr>
+          <td class="muted">{{ g.last_seen }}</td>
+          <td><span class="label {{ g.level }}">{{ g.level }}</span></td>
+          <td>{{ g.title }}</td>
+          <td>{{ g.count }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="muted">No groups yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

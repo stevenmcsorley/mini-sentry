@@ -1,0 +1,48 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage/
+htmlcov/
+*.egg-info/
+.eggs/
+
+# Django
+staticfiles/
+
+# Environments
+.env
+.env.*
+!.env.example
+
+# Node / JS
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Build artifacts
+*.log
+
+# Frontend builds (explicit; covered by dist/ and node_modules/ but listed for clarity)
+frontend/dist/
+frontend/node_modules/
+examples/react/dist/
+examples/react/node_modules/
+packages/mini-sentry-client/dist/
+packages/mini-sentry-client/node_modules/
+

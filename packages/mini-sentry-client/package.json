@@ -1,0 +1,30 @@
+{
+  "name": "@mini-sentry/client",
+  "version": "0.1.0",
+  "description": "Lightweight client to send events and sessions to Mini Sentry backend",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs,iife --global-name MiniSentry --dts",
+    "clean": "rimraf dist || true"
+  },
+  "peerDependencies": {
+    "react": ">=17",
+    "react-dom": ">=17"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.3",
+    "tsup": "8.3.0",
+    "typescript": "5.4.5"
+  }
+}

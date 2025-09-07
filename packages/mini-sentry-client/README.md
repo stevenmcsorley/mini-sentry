@@ -17,6 +17,14 @@ npm install
 npm run build
 ```
 
+Install from npm (JS or TS)
+
+```bash
+npm i @mini-sentry/client
+# or
+yarn add @mini-sentry/client
+```
+
 Usage (ESM)
 
 ```ts
@@ -68,6 +76,19 @@ Usage (UMD/IIFE)
   ms.captureMessage('hello')
   ms.sendSession('ok')
 <\/script>
+```
+
+CDN (unpkg/jsDelivr)
+
+```html
+<!-- Latest version -->
+<script src="https://unpkg.com/@mini-sentry/client/dist/index.global.js"></script>
+<!-- or -->
+<script src="https://cdn.jsdelivr.net/npm/@mini-sentry/client/dist/index.global.js"></script>
+<script>
+  const ms = window.MiniSentry.init({ token: '...', baseUrl: 'http://localhost:8000' })
+  ms.captureMessage('hello')
+</script>
 ```
 
 Notes

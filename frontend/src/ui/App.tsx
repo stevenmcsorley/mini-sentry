@@ -14,6 +14,17 @@ const api = async (path: string, opts?: RequestInit) => {
   return res.json()
 }
 
+// Format an ISO date string into something readable
+function fmtDate(iso: string): string {
+  try {
+    const d = new Date(iso)
+    // Use locale defaults with seconds, 24/12h per user locale
+    return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' } as any)
+  } catch {
+    return iso
+  }
+}
+
 function asList<T = any>(d: any): T[] {
   if (Array.isArray(d)) return d as T[]
   if (d && Array.isArray((d as any).results)) return (d as any).results as T[]
@@ -502,6 +513,15 @@ function levelDot(level: string) {
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`}></span>
 }
 
+function LevelBadge({ level }: { level: string }) {
+  const cls = level === 'error'
+    ? 'bg-red-500/20 text-red-300 border-red-500/30'
+    : level === 'warning'
+      ? 'bg-amber-400/20 text-amber-200 border-amber-400/30'
+      : 'bg-blue-400/20 text-blue-200 border-blue-400/30'
+  return <span className={`rounded border px-2 py-0.5 text-[11px] capitalize ${cls}`}>{level}</span>
+}
+
 function parseTokens(q: string) {
   const tokens: Array<{key?: string; value: string; raw: string}> = []
   const re = /(\w+):"([^"]+)"|(\w+):(\S+)|"([^"]+)"|(\S+)/g
@@ -597,18 +617,47 @@ function LogsView({
     fetch(`/api/dashboard/series/?project=${selected.slug}&range=${range}&interval=${interval}&backend=ch`).then(r=>r.json()).then(setSeries).catch(()=>{})
   }, [selected.slug, range, interval])
 
-  const width = 1100, height = 160, pad = 24
-  const totals = series.map((r: any) => ({ bucket: r.bucket, count: (r.error||0)+(r.warning||0)+(r.info||0) }))
-  const maxY = Math.max(1, ...totals.map((r: any) => r.count))
-  const xStep = totals.length > 0 ? (width - pad*2) / Math.max(1, totals.length) : width - pad*2
+  const height = 160, pad = 24
+  const chartHostRef = React.useRef<HTMLDivElement>(null)
+  const [chartW, setChartW] = useState(800)
+  useEffect(() => {
+    const measure = () => setChartW(chartHostRef.current?.clientWidth || 800)
+    measure()
+    const RO = (window as any).ResizeObserver as any
+    let ro: any = null
+    if (RO) {
+      ro = new RO(measure)
+      if (chartHostRef.current) ro.observe(chartHostRef.current)
+    }
+    return () => { try { ro && ro.disconnect && ro.disconnect() } catch {} }
+  }, [])
+  const totals = series.map((r: any) => ({ bucket: r.bucket, error: r.error||0, warning: r.warning||0, info: r.info||0, count: (r.error||0)+(r.warning||0)+(r.info||0) }))
+  const maxSum = Math.max(1, ...totals.map(r => r.count))
+  function niceTicks(max: number, n = 5): number[] {
+    if (max <= 5) return Array.from({length: max+1}, (_, i) => i)
+    const step10 = Math.pow(10, Math.floor(Math.log10(max / n)))
+    const err = n / (max / step10)
+    const mult = err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1
+    const niceStep = Math.max(1, Math.round(step10 * mult))
+    const ticks: number[] = []
+    for (let v = 0; v <= max; v += niceStep) ticks.push(v)
+    if (ticks[ticks.length-1] !== max) ticks.push(max)
+    return ticks
+  }
+  const yTicks = niceTicks(maxSum)
+  // choose up to 6 x ticks based on width
+  const step = totals.length > 0 ? (chartW - pad*2) / totals.length : (chartW - pad*2)
+  const xTickCount = Math.min(6, Math.max(2, Math.floor((chartW - pad*2) / 160)))
+  const xTicks = totals.length > 1 ? Array.from({ length: xTickCount }, (_, i) => Math.floor(i * (totals.length - 1) / (xTickCount - 1))) : [0]
 
   const visibleEvents = events
 
   function indexFromClientX(clientX: number, svgEl: SVGSVGElement | null) {
     if (!svgEl) return -1
     const rect = svgEl.getBoundingClientRect()
-    const x = (clientX - rect.left) * (width / rect.width)
-    const idx = Math.max(0, Math.min(totals.length - 1, Math.floor((x - pad) / xStep)))
+    const x = (clientX - rect.left) * (chartW / rect.width)
+    if (totals.length === 0) return -1
+    const idx = Math.max(0, Math.min(totals.length - 1, Math.floor((x - pad) / step)))
     return idx
   }
 
@@ -672,8 +721,8 @@ function LogsView({
 
       <div className="rounded-xl border border-slate-800/60 p-3">
         <div className="mb-2 text-xs text-slate-400">count(logs)</div>
-        <div className="relative">
-        <svg width={width} height={height} className="h-48 w-full" viewBox={`0 0 ${width} ${height}`}
+        <div ref={chartHostRef} className="relative w-full">
+        <svg width={chartW} height={height} className="h-48 w-full" viewBox={`0 0 ${chartW} ${height}`}
           onMouseMove={(e)=>{
             const i = indexFromClientX(e.clientX, e.currentTarget)
             if (i >= 0) setHover({i, x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY})
@@ -682,12 +731,33 @@ function LogsView({
           onMouseDown={(e)=>{ const i = indexFromClientX(e.clientX, e.currentTarget); if (i>=0) setDrag({start: i}) }}
           onMouseUp={(e)=>{ if (!drag) return; const i = indexFromClientX(e.clientX, e.currentTarget); const start = Math.min(drag.start, i); const end = Math.max(drag.start, i); setDrag(null); if (totals[start] && totals[end]) { const fromISO = normISO(totals[start].bucket); const endTime = new Date(normISO(totals[end].bucket)).getTime() + bucketMs - 1; const toISO = new Date(endTime).toISOString(); setTimeSel({from: fromISO, to: toISO}); } }}
         >
-          <rect x={0} y={0} width={width} height={height} fill="transparent" />
+          <rect x={0} y={0} width={chartW} height={height} fill="transparent" />
+          {/* horizontal gridlines */}
+          {yTicks.map((v, idx) => {
+            const y = height - pad - (v / maxSum) * (height - pad*2)
+            return (
+              <g key={idx}>
+                <line x1={pad} x2={chartW - pad} y1={y} y2={y} stroke="#64748b" strokeOpacity={0.25} strokeDasharray="3 4" />
+                <text x={pad - 6} y={y + 4} textAnchor="end" fontSize={10} fill="#94a3b8">{v}</text>
+              </g>
+            )
+          })}
+          {/* x-axis baseline */}
+          <line x1={pad} x2={chartW - pad} y1={height - pad} y2={height - pad} stroke="#64748b" strokeOpacity={0.35} />
+          {/* x ticks */}
+          {xTicks.map((i, idx) => {
+            const x = pad + i * step + (step * 0.3)
+            const label = totals[i] ? new Date(normISO(totals[i].bucket)).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''
+            return (
+              <g key={idx}>
+                <line x1={x} x2={x} y1={height - pad} y2={height - pad + 4} stroke="#64748b" strokeOpacity={0.6} />
+                <text x={x} y={height - pad + 16} textAnchor="middle" fontSize={10} fill="#94a3b8">{label}</text>
+              </g>
+            )
+          })}
           {totals.map((r: any, i: number) => {
-            const barW = Math.max(2, xStep * 0.6)
-            const x = 24 + i * xStep
-            const h = (r.count / maxY) * (height - pad*2)
-            const y = height - pad - h
+            const barW = Math.max(2, step * 0.6)
+            const x = pad + i * step + (step - barW)/2
             let inSel = false
             if (timeSel) {
               const bStart = new Date(normISO(r.bucket)).getTime()
@@ -695,10 +765,24 @@ function LogsView({
               const toMs = new Date(timeSel.to).getTime()
               inSel = bStart >= fromMs && bStart <= toMs
             }
-            return <rect key={i} x={x} y={y} width={barW} height={Math.max(1, h)} className={inSel ? 'fill-blue-400/90' : 'fill-slate-400/80'} />
+            // stacked segments: info (bottom), warning (middle), error (top)
+            const area = height - pad*2
+            const hInfo = r.info ? Math.max(1, (r.info / maxSum) * area) : 0
+            const hWarn = r.warning ? Math.max(1, (r.warning / maxSum) * area) : 0
+            const hErr  = r.error ? Math.max(1, (r.error  / maxSum) * area) : 0
+            let yBase = height - pad
+            const seg = [] as any[]
+            if (hInfo) { yBase -= hInfo; seg.push(<rect key={`i-${i}`} x={x} y={yBase} width={barW} height={hInfo} rx={1.5} fill="#60a5fa" opacity={inSel?0.95:0.75} />) }
+            if (hWarn) { yBase -= hWarn; seg.push(<rect key={`w-${i}`} x={x} y={yBase} width={barW} height={hWarn} rx={1.5} fill="#f59e0b" opacity={inSel?0.95:0.75} />) }
+            if (hErr)  { yBase -= hErr;  seg.push(<rect key={`e-${i}`} x={x} y={yBase} width={barW} height={hErr}  rx={1.5} fill="#ef4444" opacity={inSel?0.95:0.8} />) }
+            return <g key={i}>{seg}</g>
           })}
+          {/* hover guideline */}
+          {hover && totals[hover.i] && (
+            <line x1={pad + hover.i * step + (step * 0.3)} x2={pad + hover.i * step + (step * 0.3)} y1={pad} y2={height - pad} stroke="#94a3b8" strokeOpacity={0.35} />
+          )}
           {drag && (
-            <rect x={pad + Math.min(drag.start, hover?.i ?? drag.start) * xStep} y={pad} width={Math.abs(((hover?.i ?? drag.start) - drag.start) * xStep)} height={height - pad*2} className="fill-blue-500/20" />
+            <rect x={pad + Math.min(drag.start, hover?.i ?? drag.start) * step} y={pad} width={Math.abs(((hover?.i ?? drag.start) - drag.start) * step)} height={height - pad*2} className="fill-blue-500/20" />
           )}
         </svg>
         {hover && totals[hover.i] && (
@@ -713,14 +797,14 @@ function LogsView({
 
 
       <div className="rounded-xl border border-slate-800/60">
-        <div className="grid grid-cols-[180px_1fr_120px] gap-2 border-b border-slate-800/60 px-3 py-2 text-xs text-slate-400">
+        <div className="grid grid-cols-[220px_1fr_120px] gap-2 border-b border-slate-800/60 px-3 py-2 text-xs text-slate-400">
           <div>TIMESTAMP</div>
           <div>MESSAGE</div>
           <div>LEVEL</div>
         </div>
         <div className="divide-y divide-slate-800/60">
           {visibleEvents.map(e => (
-            <div key={e.id} className="grid grid-cols-[180px_1fr_120px] items-start gap-2 px-3 py-2 text-sm">
+            <div key={e.id} className="grid grid-cols-[220px_1fr_120px] items-start gap-2 px-3 py-2 text-sm">
               <div className="flex items-center gap-2">
                 <button
                   className={`inline-flex h-5 w-5 items-center justify-center rounded hover:bg-slate-800/60`}
@@ -732,17 +816,23 @@ function LogsView({
                   </svg>
                 </button>
                 {levelDot(e.level)}
-                <span className="tabular-nums text-slate-300">{e.received_at}</span>
+                <span className="tabular-nums text-slate-300">{fmtDate(e.received_at)}</span>
               </div>
               <div className="min-w-0 truncate text-slate-100">{e.message}</div>
-              <div className="capitalize text-slate-300">{e.level}</div>
+              <div className="flex items-center"><LevelBadge level={e.level} /></div>
               {open[e.id] && (
               <div className="col-span-3">
                 {eventDetails[e.id] ? (
-                  <div className="mt-2 rounded-xl border border-slate-800/60 bg-slate-900/40 p-3">
+                  <div className="mt-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4 shadow-sm ring-1 ring-slate-700/40 border-l-4 border-indigo-500/60">
+                    <div className="mb-3 flex items-center justify-between text-xs text-slate-300">
+                      <div className="truncate pr-2 text-sm font-medium text-slate-100">{e.message}</div>
+                      <div className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="rounded bg-slate-900/60 px-2 py-0.5">{fmtDate(e.received_at)}</span>
+                        <LevelBadge level={e.level} />
+                      </div>
+                    </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <div className="rounded border border-slate-800/60 bg-slate-900/50 p-2 text-sm">{e.message}</div>
                         <dl className="grid grid-cols-2 gap-2 text-xs">
                           {eventDetails[e.id].release ? (
                             <>
@@ -756,6 +846,8 @@ function LogsView({
                               <dd>{eventDetails[e.id].environment}</dd>
                             </>
                           ) : null}
+                          <dt className="text-slate-400">timestamp</dt>
+                          <dd className="truncate">{fmtDate(e.received_at)}</dd>
                           {Array.isArray(eventDetails[e.id].tags) && eventDetails[e.id].tags.length ? (
                             <>
                               <dt className="text-slate-400">tags</dt>

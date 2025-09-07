@@ -7,20 +7,44 @@
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
   },
+  "unpkg": "dist/index.global.js",
+  "jsdelivr": "dist/index.global.js",
+  "keywords": [
+    "sentry",
+    "error-reporting",
+    "logging",
+    "browser",
+    "observability"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/<your-user-or-org>/mini-sentry.git",
+    "directory": "packages/mini-sentry-client"
+  },
+  "bugs": {
+    "url": "https://github.com/<your-user-or-org>/mini-sentry/issues"
+  },
+  "homepage": "https://github.com/<your-user-or-org>/mini-sentry#readme",
   "files": ["dist"],
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs,iife --global-name MiniSentry --dts",
     "clean": "rimraf dist || true"
   },
+  "publishConfig": { "access": "public" },
   "peerDependencies": {
     "react": ">=17",
     "react-dom": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
   },
   "devDependencies": {
     "@types/react": "18.3.3",

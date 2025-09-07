@@ -80,6 +80,7 @@ export function App() {
   const [eventLimit, setEventLimit] = useState<number>(50)
   const [eventOffset, setEventOffset] = useState<number>(0)
   const [eventTotal, setEventTotal] = useState<number>(0)
+  const [customRange, setCustomRange] = useState<{value: number; unit: string; label: string} | null>(null)
 
   // Read initial state from URL hash on first load
   useEffect(() => {
@@ -110,9 +111,24 @@ export function App() {
     if (projects.length === 0) return
     if (wanted) {
       const bySlug = projects.find(p => p.slug === wanted)
-      if (bySlug) { setSelected(bySlug); return }
+      if (bySlug) { 
+        setSelected(bySlug)
+        // Reset to default time range when switching projects
+        setRange('24h')
+        setInterval('1h')
+        setTimeSel(null)
+        setCustomRange(null)
+        return 
+      }
     }
-    if (!selected) setSelected(projects[0])
+    if (!selected) {
+      setSelected(projects[0])
+      // Set default time range for first project load
+      setRange('24h')
+      setInterval('1h')
+      setTimeSel(null)
+      setCustomRange(null)
+    }
   }, [projects])
 
   // Push state to URL hash on changes
@@ -140,15 +156,40 @@ export function App() {
 
   useEffect(() => {
     if (!selected) return
+    
+    // Calculate time range - either from specific timeSel or from range/customRange
+    let timeParams: {from: string; to: string} | null = null
+    if (timeSel) {
+      timeParams = timeSel
+    } else if (customRange || range !== '24h' || range === '1h') {
+      // Calculate time range based on custom range or preset range
+      const now = Date.now()
+      let minutes = 0
+      
+      if (customRange) {
+        minutes = customRange.unit === 'm' ? customRange.value :
+                 customRange.unit === 'h' ? customRange.value * 60 :
+                 customRange.unit === 'd' ? customRange.value * 24 * 60 :
+                 customRange.unit === 'w' ? customRange.value * 7 * 24 * 60 : 1440
+      } else {
+        minutes = range==='1h'?60:range==='24h'?1440:range==='7d'?10080:range==='14d'?20160:range==='30d'?43200:range==='90d'?129600:525600
+      }
+      
+      timeParams = {
+        from: new Date(now - minutes * 60 * 1000).toISOString(),
+        to: new Date(now).toISOString()
+      }
+    }
+    
     const gq = new URLSearchParams({ project: selected.slug })
-    if (timeSel) { gq.set('from', timeSel.from); gq.set('to', timeSel.to) }
+    if (timeParams) { gq.set('from', timeParams.from); gq.set('to', timeParams.to) }
     api(`/api/groups/?${gq.toString()}`).then(d => setGroups(asList<Group>(d)))
     const q = new URLSearchParams({ project: selected.slug })
     if (filterLevel) q.set('level', filterLevel)
     if (filterEnv) q.set('environment', filterEnv)
     if (filterRelease) q.set('release', filterRelease)
     if (search) q.set('q', search)
-    if (timeSel) { q.set('from', timeSel.from); q.set('to', timeSel.to) }
+    if (timeParams) { q.set('from', timeParams.from); q.set('to', timeParams.to) }
     // Only apply pagination when viewing Logs
     if (activeTab === 'logs') {
       q.set('limit', String(eventLimit))
@@ -171,10 +212,10 @@ export function App() {
     api(`/api/releases/health/?project=${selected.slug}`).then(setHealth).catch(() => {})
     api(`/api/deployments/?project=${selected.slug}`).then(d => setDeploys(asList<Deployment>(d))).catch(() => {})
     api(`/api/releases/health/series/?project=${selected.slug}&range=${range}&interval=${interval}`).then(setSeries).catch(() => {})
-  }, [selected, filterLevel, filterEnv, filterRelease, search, timeSel, eventLimit, eventOffset, activeTab])
+  }, [selected, filterLevel, filterEnv, filterRelease, search, timeSel, eventLimit, eventOffset, activeTab, customRange, range])
 
   // Reset pagination when filters or search change
-  useEffect(() => { setEventOffset(0) }, [selected, filterLevel, filterEnv, filterRelease, search, timeSel])
+  useEffect(() => { setEventOffset(0) }, [selected, filterLevel, filterEnv, filterRelease, search, timeSel, customRange, range])
 
   const createProject = async (name: string) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
@@ -362,6 +403,8 @@ export function App() {
                     eventOffset={eventOffset}
                     setEventOffset={setEventOffset}
                     eventTotal={eventTotal}
+                    customRange={customRange}
+                    setCustomRange={setCustomRange}
                   />
                 ) : <p className="text-sm text-slate-400">Create or select a project in Projects tab.</p>
               ) : (
@@ -529,6 +572,117 @@ function LevelBadge({ level }: { level: string }) {
   return <span className={`rounded border px-2 py-0.5 text-[11px] capitalize ${cls}`}>{level}</span>
 }
 
+function TimeRangeMenu({ range, setRange, setInterval, setTimeSel, onCustomRange }: { range: '1h'|'24h'|'7d'|'14d'|'30d'|'90d'|'1y', setRange: any, setInterval: any, setTimeSel: any, onCustomRange?: (customRange: {value: number; unit: string; label: string} | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const [custom, setCustom] = useState('')
+  const [customRange, setCustomRange] = useState<{value: number; unit: string; label: string} | null>(null)
+  const applyRelative = (r: string) => {
+    setRange(r)
+    setInterval(r==='1h'?'1m':r==='24h'?'1h':r==='7d'?'1h':r==='14d'?'1h':r==='30d'?'24h':r==='90d'?'24h':'24h')
+    setTimeSel(null) // Clear any specific time selection - show full range
+    setCustomRange(null) // Clear custom range when using preset
+    onCustomRange?.(null) // Notify parent
+    setOpen(false)
+  }
+  // Parse custom input and return the best match without applying it
+  const parseCustomInput = (s: string): {value: number; unit: string; label: string} | null => {
+    let maxMs = 0
+    let bestMatch: {value: number; unit: string; label: string} | null = null
+    
+    s.split(/[\,\s]+/).forEach(tok => {
+      const m = tok.trim().match(/^(\d+)([mhdw])$/i)
+      if (!m) return
+      const value = parseInt(m[1], 10)
+      const unit = m[2].toLowerCase()
+      
+      // Convert to milliseconds and validate limits
+      let ms = 0
+      let validRange = false
+      let displayUnit = ''
+      let pluralUnit = ''
+      
+      if (unit === 'm' && value <= 60) {
+        ms = value * 60 * 1000
+        validRange = true
+        displayUnit = 'minute'
+        pluralUnit = 'minutes'
+      } else if (unit === 'h' && value <= 24) {
+        ms = value * 60 * 60 * 1000
+        validRange = true
+        displayUnit = 'hour'
+        pluralUnit = 'hours'
+      } else if (unit === 'd' && value <= 365) {
+        ms = value * 24 * 60 * 60 * 1000
+        validRange = true
+        displayUnit = 'day'
+        pluralUnit = 'days'
+      } else if (unit === 'w' && value <= 52) {
+        ms = value * 7 * 24 * 60 * 60 * 1000
+        validRange = true
+        displayUnit = 'week'
+        pluralUnit = 'weeks'
+      }
+      
+      if (validRange && ms > maxMs) {
+        maxMs = ms
+        const label = value === 1 ? `Last ${displayUnit}` : `Last ${value} ${pluralUnit}`
+        bestMatch = { value, unit, label }
+      }
+    })
+    
+    return bestMatch
+  }
+
+  // Apply the custom range
+  const applyCustomRange = (customRange: {value: number; unit: string; label: string}) => {
+    const value = customRange.value
+    const unit = customRange.unit
+    const ms = unit === 'm' ? value * 60 * 1000 :
+               unit === 'h' ? value * 60 * 60 * 1000 :
+               unit === 'd' ? value * 24 * 60 * 60 * 1000 :
+               unit === 'w' ? value * 7 * 24 * 60 * 60 * 1000 : 0
+
+    // Set appropriate interval based on time range
+    const interval = ms <= 60*60*1000 ? '1m' :       // <= 1 hour: 1m
+                   ms <= 24*60*60*1000 ? '1h' :      // <= 1 day: 1h  
+                   '24h'                              // > 1 day: 24h
+    
+    setRange('24h') // Use 24h as base, but we'll override with custom display
+    setInterval(interval)
+    setCustomRange(customRange)
+    onCustomRange?.(customRange) // Notify parent
+    setTimeSel(null) // Clear any specific time selection - show full range
+    setCustom('') // Clear the input field
+    setOpen(false)
+  }
+  
+  // Get the parsed custom range from current input
+  const parsedCustom = custom.trim() ? parseCustomInput(custom) : null
+  const label = customRange ? customRange.label : (range==='1h'?'1H':range==='24h'?'24H':range==='7d'?'7D':range==='14d'?'14D':range==='30d'?'30D':range==='90d'?'90D':'1Y')
+  return (
+    <div className="relative">
+      <button className="rounded border border-slate-700 bg-transparent px-2 py-1" onClick={()=>setOpen(v=>!v)}>{label}</button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-56 rounded-md border border-slate-700 bg-slate-900 p-2 text-sm shadow">
+          <div className="mb-2 text-[11px] text-slate-400">Filter Time Range</div>
+          <input className="mb-2 w-full rounded border border-slate-700 bg-transparent px-2 py-1 text-xs" placeholder="Custom range: 30m, 2h, 4d, 3w" value={custom} onChange={e=>setCustom(e.target.value)} />
+          <ul className="space-y-1">
+            {parsedCustom && (
+              <li><button className="w-full rounded px-2 py-1 text-left bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30" onClick={()=>applyCustomRange(parsedCustom)}>{parsedCustom.label}</button></li>
+            )}
+            <li><button className="w-full rounded px-2 py-1 text-left hover:bg-slate-800/60" onClick={()=>applyRelative('1h')}>Last hour</button></li>
+            <li><button className="w-full rounded px-2 py-1 text-left hover:bg-slate-800/60" onClick={()=>applyRelative('24h')}>Last 24 hours</button></li>
+            <li><button className="w-full rounded px-2 py-1 text-left hover:bg-slate-800/60" onClick={()=>applyRelative('7d')}>Last 7 days</button></li>
+            <li><button className="w-full rounded px-2 py-1 text-left hover:bg-slate-800/60" onClick={()=>applyRelative('14d')}>Last 14 days</button></li>
+            <li><button className="w-full rounded px-2 py-1 text-left hover:bg-slate-800/60" onClick={()=>applyRelative('30d')}>Last 30 days</button></li>
+            <li><button className="w-full rounded px-2 py-1 text-left hover:bg-slate-800/60" onClick={()=>{ /* Absolute date could open a date picker */ }}>Absolute date →</button></li>
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function parseTokens(q: string) {
   const tokens: Array<{key?: string; value: string; raw: string}> = []
   const re = /(\w+):"([^"]+)"|(\w+):(\S+)|"([^"]+)"|(\S+)/g
@@ -564,6 +718,8 @@ function LogsView({
   eventLimit, setEventLimit,
   eventOffset, setEventOffset,
   eventTotal,
+  customRange,
+  setCustomRange,
 }: {
   selected: Project
   projects: Project[]
@@ -579,10 +735,10 @@ function LogsView({
   events: Event[]
   onView: (id: number) => void
   eventDetails: Record<number, any>
-  range: '1h'|'24h'
-  interval: '5m'|'1h'
-  setRange: (r: '1h'|'24h') => void
-  setInterval: (i: '5m'|'1h') => void
+  range: '1h'|'24h'|'7d'|'14d'|'30d'|'90d'|'1y'
+  interval: '1m'|'5m'|'15m'|'30m'|'1h'|'24h'|'7d'|'30d'
+  setRange: (r: '1h'|'24h'|'7d'|'14d'|'30d'|'90d'|'1y') => void
+  setInterval: (i: '1m'|'5m'|'15m'|'30m'|'1h'|'24h'|'7d'|'30d') => void
   onSendTest: () => void
   msg: string
   setMsg: (s: string) => void
@@ -593,6 +749,8 @@ function LogsView({
   eventOffset: number
   setEventOffset: (n: number) => void
   eventTotal: number
+  customRange: {value: number; unit: string; label: string} | null
+  setCustomRange: (customRange: {value: number; unit: string; label: string} | null) => void
 }) {
   const tokens = parseTokens(search)
   const [series, setSeries] = useState<any[]>([])
@@ -605,7 +763,49 @@ function LogsView({
   const [zoomStart, setZoomStart] = useState<number|null>(null)
   const [zoomEnd, setZoomEnd] = useState<number|null>(null)
   const brushTimer = React.useRef<any>(null)
+  const isUpdatingFromCode = React.useRef<boolean>(false)
   useEffect(() => () => { if (brushTimer.current) clearTimeout(brushTimer.current) }, [])
+
+  // Keep chart zoom in sync with selected time range (from brush, click, or quick menu)
+  useEffect(() => {
+    const inst = chartInstRef.current
+    if (!inst || isUpdatingFromCode.current) return
+    
+    // Check if instance is disposed before using it
+    try {
+      const option = inst.getOption()
+      if (!option) return // Instance is disposed
+    } catch {
+      return // Instance is disposed or invalid
+    }
+    
+    // Add a small delay to avoid interfering with other effects
+    const timer = setTimeout(() => {
+      if (timeSel && timeSel.from && timeSel.to) {
+        const fromVal = new Date(timeSel.from).getTime()
+        const toVal = new Date(timeSel.to).getTime()
+        setZoomStart(fromVal); setZoomEnd(toVal)
+        isUpdatingFromCode.current = true
+        try { 
+          if (!inst.isDisposed?.()) {
+            inst.dispatchAction({ type: 'dataZoom', startValue: fromVal, endValue: toVal }) 
+          }
+        } catch {}
+        setTimeout(() => { isUpdatingFromCode.current = false }, 200)
+      } else {
+        setZoomStart(null); setZoomEnd(null)
+        isUpdatingFromCode.current = true
+        try { 
+          if (!inst.isDisposed?.()) {
+            inst.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) 
+          }
+        } catch {}
+        setTimeout(() => { isUpdatingFromCode.current = false }, 200)
+      }
+    }, 100)
+    
+    return () => clearTimeout(timer)
+  }, [timeSel])
   const bucketMs = interval === '1h' ? 60*60*1000 : 5*60*1000
 
   function normISO(s: string) {
@@ -646,6 +846,18 @@ function LogsView({
     return () => { try { ro && ro.disconnect && ro.disconnect() } catch {} }
   }, [])
   const totals = series.map((r: any) => ({ bucket: r.bucket, error: r.error||0, warning: r.warning||0, info: r.info||0, count: (r.error||0)+(r.warning||0)+(r.info||0) }))
+  
+  // Memoize chart data to prevent flickering when unrelated state changes
+  const chartData = React.useMemo(() => {
+    return totals.map(r => ({
+      bucket: r.bucket,
+      error: r.error,
+      warning: r.warning, 
+      info: r.info,
+      timestamp: new Date(normISO(r.bucket)).getTime()
+    }))
+  }, [totals])
+  
   const maxSum = Math.max(1, ...totals.map(r => r.count))
   function niceTicks(max: number, n = 5): number[] {
     if (max <= 5) return Array.from({length: max+1}, (_, i) => i)
@@ -680,7 +892,7 @@ function LogsView({
       <div className="rounded-xl border border-slate-800/60 p-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm">
-            <select value={selected.id} onChange={(e)=>{ const p = projects.find(pp=>pp.id === Number(e.target.value)); if(p) setSelected(p) }} className="rounded border border-slate-700 bg-transparent px-2 py-1">
+            <select value={selected.id} onChange={(e)=>{ const p = projects.find(pp=>pp.id === Number(e.target.value)); if(p) { setSelected(p); setRange('24h'); setInterval('1h'); setTimeSel(null); setCustomRange(null) } }} className="rounded border border-slate-700 bg-transparent px-2 py-1">
               {projects.map(p => (<option key={p.id} value={p.id}>{p.slug}</option>))}
             </select>
             <select value={filterEnv} onChange={e=>setFilterEnv(e.target.value)} className="rounded border border-slate-700 bg-transparent px-2 py-1">
@@ -689,17 +901,7 @@ function LogsView({
               <option value="staging">staging</option>
               <option value="development">development</option>
             </select>
-            <select value={range} onChange={e=>setRange(e.target.value as any)} className="rounded border border-slate-700 bg-transparent px-2 py-1">
-              <option value="1h">1H</option>
-              <option value="24h">24H</option>
-            </select>
-            <select value={interval} onChange={e=>setInterval(e.target.value as any)} className="rounded border border-slate-700 bg-transparent px-2 py-1">
-              <option value="1m">1m</option>
-              <option value="5m">5m</option>
-              <option value="15m">15m</option>
-              <option value="30m">30m</option>
-              <option value="1h">1h</option>
-            </select>
+            <TimeRangeMenu range={range} setRange={setRange} setInterval={setInterval} setTimeSel={setTimeSel} onCustomRange={setCustomRange} />
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search for logs, users, tags, and more" className="w-full rounded border border-slate-700 bg-transparent px-3 py-2 text-sm" />
@@ -729,7 +931,7 @@ function LogsView({
               <button className="text-slate-400 hover:text-slate-200" onClick={()=>setSearch(removeTokenFromQuery(search, t.raw))}>×</button>
             </span>
           ))}
-          <button className="rounded-full border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800/60" onClick={() => { setTimeSel(null); setRange('24h'); setInterval('1h'); setLegendSel({ error: true, warning: true, info: true }); try { chartInstRef.current?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) } catch {} }}>See full list</button>
+          <button className="rounded-full border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800/60" onClick={() => { setTimeSel(null); setRange('24h'); setInterval('1h'); setCustomRange(null); setLegendSel({ error: true, warning: true, info: true }); try { const inst = chartInstRef.current; if (inst && !inst.isDisposed?.()) { inst.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) } } catch {} }}>See full list</button>
         </div>
         {showHelp && (
           <div className="mt-2 rounded border border-slate-800/60 bg-slate-900/50 p-3 text-xs text-slate-300">
@@ -747,7 +949,12 @@ function LogsView({
             {(() => {
               const now = new Date()
               const end = timeSel ? new Date(timeSel.to) : now
-              const minutes = (range==='1h'?60:range==='24h'?1440:range==='7d'?10080:range==='30d'?43200:range==='90d'?129600:525600)
+              const minutes = customRange ? 
+                (customRange.unit === 'm' ? customRange.value :
+                 customRange.unit === 'h' ? customRange.value * 60 :
+                 customRange.unit === 'd' ? customRange.value * 24 * 60 :
+                 customRange.unit === 'w' ? customRange.value * 7 * 24 * 60 : 1440)
+                : (range==='1h'?60:range==='24h'?1440:range==='7d'?10080:range==='14d'?20160:range==='30d'?43200:range==='90d'?129600:525600)
               const start = timeSel ? new Date(timeSel.from) : new Date(now.getTime() - minutes*60*1000)
               const fmtOpts: any = { year: 'numeric', month: 'short', day: '2-digit' }
               return `${start.toLocaleDateString(undefined, fmtOpts)} — ${end.toLocaleDateString(undefined, fmtOpts)}`
@@ -758,6 +965,7 @@ function LogsView({
           <div style={{ width: '100%', height: 220 }}>
             { /* @ts-ignore */ }
             <ReactECharts
+              key={`chart-${selected.slug}-${range}-${customRange?.label || ''}`}
               echarts={echarts as any}
               style={{ width: '100%', height: 220, cursor: 'crosshair' }}
               option={{
@@ -777,16 +985,30 @@ function LogsView({
                     return lines.join('<br/>')
                   }
                 },
-                xAxis: { type: 'time', axisLabel: { color: '#94a3b8' }, axisLine: { lineStyle: { color: '#64748b' } } },
+                xAxis: { 
+                  type: 'time', 
+                  axisLabel: { color: '#94a3b8' }, 
+                  axisLine: { lineStyle: { color: '#64748b' } },
+                  // Set explicit bounds based on selected range when no specific timeSel
+                  ...(timeSel ? {} : {
+                    min: new Date(Date.now() - (customRange ? 
+                      (customRange.unit === 'm' ? customRange.value * 60 * 1000 :
+                       customRange.unit === 'h' ? customRange.value * 60 * 60 * 1000 :
+                       customRange.unit === 'd' ? customRange.value * 24 * 60 * 60 * 1000 :
+                       customRange.unit === 'w' ? customRange.value * 7 * 24 * 60 * 60 * 1000 : 86400000)
+                      : (range==='1h'?60:range==='24h'?1440:range==='7d'?10080:range==='14d'?20160:range==='30d'?43200:range==='90d'?129600:525600) * 60 * 1000)).getTime(),
+                    max: new Date().getTime()
+                  })
+                },
                 yAxis: { type: 'value', min: 0, axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#64748b', opacity: 0.25, type: 'dashed' } } },
                 // wheel/pinch zoom inside; no slider UI (persist selected range)
-                dataZoom: [ Object.assign({ type: 'inside', zoomOnMouseWheel: true, moveOnMouseWheel: false, moveOnMouseMove: false }, (zoomStart!=null&&zoomEnd!=null)?{ startValue: zoomStart, endValue: zoomEnd }:{} ) ],
+                dataZoom: [ Object.assign({ type: 'inside', zoomOnMouseWheel: true, moveOnMouseWheel: false, moveOnMouseMove: false }, (zoomStart!=null&&zoomEnd!=null)?{ startValue: zoomStart, endValue: zoomEnd }:{ start: 0, end: 100 } ) ],
                 // enable drag-to-select across x axis (like Sentry)
                 brush: { xAxisIndex: 0, brushType: 'lineX', brushMode: 'single', transformable: false, throttleType: 'debounce', throttleDelay: 120 },
                 series: [
-                  { name:'error', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#ef4444' }, data: totals.map(r=>[new Date(normISO(r.bucket)).getTime(), r.error]) },
-                  { name:'warning', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#f59e0b' }, data: totals.map(r=>[new Date(normISO(r.bucket)).getTime(), r.warning]) },
-                  { name:'info', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#60a5fa' }, data: totals.map(r=>[new Date(normISO(r.bucket)).getTime(), r.info]) },
+                  { name:'error', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#ef4444' }, data: chartData.map(r=>[r.timestamp, r.error]) },
+                  { name:'warning', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#f59e0b' }, data: chartData.map(r=>[r.timestamp, r.warning]) },
+                  { name:'info', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#60a5fa' }, data: chartData.map(r=>[r.timestamp, r.info]) },
                 ],
               }}
               onChartReady={(inst: any) => {
@@ -798,6 +1020,9 @@ function LogsView({
               }}
               onEvents={{
                 click: (p: any) => {
+                  // Don't process click events triggered by our own code
+                  if (isUpdatingFromCode.current) return
+                  
                   // Clicking a bar filters to that bucket's time window
                   const pt = Array.isArray(p?.data) ? p.data[0] : null
                   if (pt != null) {
@@ -806,11 +1031,19 @@ function LogsView({
                     setTimeSel({ from: fromISO, to: toISO })
                     try {
                       setZoomStart(pt); setZoomEnd(pt + bucketMs - 1)
-                      chartInstRef.current?.dispatchAction({ type: 'dataZoom', startValue: pt, endValue: pt + bucketMs - 1 })
+                      isUpdatingFromCode.current = true
+                      const inst = chartInstRef.current
+                      if (inst && !inst.isDisposed?.()) {
+                        inst.dispatchAction({ type: 'dataZoom', startValue: pt, endValue: pt + bucketMs - 1 })
+                      }
+                      setTimeout(() => { isUpdatingFromCode.current = false }, 200)
                     } catch {}
                   }
                 },
                 datazoom: (e: any) => {
+                  // Don't process zoom events triggered by our own code
+                  if (isUpdatingFromCode.current) return
+                  
                   const sv = (e as any).startValue
                   const ev = (e as any).endValue
                   if (sv != null && ev != null) {
@@ -829,25 +1062,38 @@ function LogsView({
                     setZoomStart(fromVal); setZoomEnd(toVal)
                   }
                 },
-                brushselected: (e: any) => {
-                  const batch = e?.batch?.[0]
-                  if (batch && batch.areas && batch.areas.length > 0) {
-                    const range = batch.areas[0].coordRange
-                    if (range && range.length === 2) {
-                      const fromVal = range[0]
-                      const toVal = range[1]
-                      if (brushTimer.current) clearTimeout(brushTimer.current)
-                      brushTimer.current = setTimeout(() => {
-                        const fromISO = new Date(fromVal).toISOString()
-                        const toISO = new Date(toVal + bucketMs - 1).toISOString()
-                        setTimeSel({ from: fromISO, to: toISO })
-                        try {
-                          setZoomStart(fromVal); setZoomEnd(toVal)
-                          chartInstRef.current?.dispatchAction({ type: 'dataZoom', startValue: fromVal, endValue: toVal })
-                          chartInstRef.current?.dispatchAction({ type: 'brush', areas: [] })
-                        } catch {}
-                      }, 180)
-                    }
+                brush: (e: any) => {
+                  // This fires during brushing - don't apply filter yet, just for visual feedback
+                  if (isUpdatingFromCode.current) return
+                },
+                brushEnd: (e: any) => {
+                  // This fires when brush is released - now we apply the filter
+                  if (isUpdatingFromCode.current) return
+                  
+                  const batch = e?.areas?.[0]
+                  if (batch && batch.coordRange && batch.coordRange.length === 2) {
+                    const fromVal = batch.coordRange[0]
+                    const toVal = batch.coordRange[1]
+                    
+                    // Clear any existing timer
+                    if (brushTimer.current) clearTimeout(brushTimer.current)
+                    
+                    // Apply the filter immediately when brush ends
+                    const fromISO = new Date(fromVal).toISOString()
+                    const toISO = new Date(toVal + bucketMs - 1).toISOString()
+                    
+                    
+                    setTimeSel({ from: fromISO, to: toISO })
+                    try {
+                      setZoomStart(fromVal); setZoomEnd(toVal)
+                      isUpdatingFromCode.current = true
+                      const inst = chartInstRef.current
+                      if (inst && !inst.isDisposed?.()) {
+                        inst.dispatchAction({ type: 'dataZoom', startValue: fromVal, endValue: toVal })
+                        inst.dispatchAction({ type: 'brush', areas: [] })
+                      }
+                      setTimeout(() => { isUpdatingFromCode.current = false }, 200)
+                    } catch {}
                   }
                 },
                 legendselectchanged: (e: any) => {

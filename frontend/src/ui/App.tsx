@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { Dashboard } from './Dashboard'
+import ReactECharts from 'echarts-for-react'
+// ECharts core import + components so brush works reliably
+import * as echarts from 'echarts/core'
+import { BarChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, BrushComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+echarts.use([BarChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, BrushComponent, CanvasRenderer])
 
 type Project = { id: number; name: string; slug: string; ingest_token: string }
 type Group = { id: number; title: string; level: string; count: number; last_seen: string }
@@ -61,8 +68,8 @@ export function App() {
   const [eventDetails, setEventDetails] = useState<Record<number, any>>({})
   const [editRule, setEditRule] = useState<{threshold: number; window: number; notify: number}>({threshold: 10, window: 5, notify: 60})
   const [series, setSeries] = useState<any[]>([])
-  const [range, setRange] = useState<'1h'|'24h'>('24h')
-  const [interval, setInterval] = useState<'5m'|'1h'>('5m')
+  const [range, setRange] = useState<'1h'|'24h'|'7d'|'30d'|'90d'|'1y'>('24h')
+  const [interval, setInterval] = useState<'1m'|'5m'|'15m'|'30m'|'1h'|'24h'|'7d'|'30d'>('5m')
   const [filterLevel, setFilterLevel] = useState('')
   const [filterEnv, setFilterEnv] = useState('')
   const [filterRelease, setFilterRelease] = useState('')
@@ -593,6 +600,12 @@ function LogsView({
   const [hover, setHover] = useState<{i: number; x: number; y: number} | null>(null)
   const [drag, setDrag] = useState<{start: number; end?: number} | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [legendSel, setLegendSel] = useState<{[k:string]: boolean}>({ error: true, warning: true, info: true })
+  const chartInstRef = React.useRef<any>(null)
+  const [zoomStart, setZoomStart] = useState<number|null>(null)
+  const [zoomEnd, setZoomEnd] = useState<number|null>(null)
+  const brushTimer = React.useRef<any>(null)
+  useEffect(() => () => { if (brushTimer.current) clearTimeout(brushTimer.current) }, [])
   const bucketMs = interval === '1h' ? 60*60*1000 : 5*60*1000
 
   function normISO(s: string) {
@@ -614,7 +627,8 @@ function LogsView({
     setToLocal(timeSel ? toInputLocal(timeSel.to) : '')
   }, [timeSel])
   useEffect(() => {
-    fetch(`/api/dashboard/series/?project=${selected.slug}&range=${range}&interval=${interval}&backend=ch`).then(r=>r.json()).then(setSeries).catch(()=>{})
+    const ib = (i: string) => (i==='5m'||i==='1h')? i : (i==='1m'?'5m':(i==='15m'?'5m':(i==='30m'?'1h':'1h')))
+    fetch(`/api/dashboard/series/?project=${selected.slug}&range=${range}&interval=${ib(interval)}&backend=ch`).then(r=>r.json()).then(setSeries).catch(()=>{})
   }, [selected.slug, range, interval])
 
   const height = 160, pad = 24
@@ -650,7 +664,7 @@ function LogsView({
   const xTickCount = Math.min(6, Math.max(2, Math.floor((chartW - pad*2) / 160)))
   const xTicks = totals.length > 1 ? Array.from({ length: xTickCount }, (_, i) => Math.floor(i * (totals.length - 1) / (xTickCount - 1))) : [0]
 
-  const visibleEvents = events
+  const visibleEvents = events.filter(e => legendSel[e.level ?? 'error'] !== false)
 
   function indexFromClientX(clientX: number, svgEl: SVGSVGElement | null) {
     if (!svgEl) return -1
@@ -678,6 +692,13 @@ function LogsView({
             <select value={range} onChange={e=>setRange(e.target.value as any)} className="rounded border border-slate-700 bg-transparent px-2 py-1">
               <option value="1h">1H</option>
               <option value="24h">24H</option>
+            </select>
+            <select value={interval} onChange={e=>setInterval(e.target.value as any)} className="rounded border border-slate-700 bg-transparent px-2 py-1">
+              <option value="1m">1m</option>
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="30m">30m</option>
+              <option value="1h">1h</option>
             </select>
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -708,7 +729,7 @@ function LogsView({
               <button className="text-slate-400 hover:text-slate-200" onClick={()=>setSearch(removeTokenFromQuery(search, t.raw))}>×</button>
             </span>
           ))}
-          <button className="rounded-full border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800/60" onClick={()=>setShowHelp(v=>!v)}>See full list</button>
+          <button className="rounded-full border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800/60" onClick={() => { setTimeSel(null); setRange('24h'); setInterval('1h'); setLegendSel({ error: true, warning: true, info: true }); try { chartInstRef.current?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) } catch {} }}>See full list</button>
         </div>
         {showHelp && (
           <div className="mt-2 rounded border border-slate-800/60 bg-slate-900/50 p-3 text-xs text-slate-300">
@@ -720,79 +741,128 @@ function LogsView({
       </div>
 
       <div className="rounded-xl border border-slate-800/60 p-3">
-        <div className="mb-2 text-xs text-slate-400">count(logs)</div>
-        <div ref={chartHostRef} className="relative w-full">
-        <svg width={chartW} height={height} className="h-48 w-full" viewBox={`0 0 ${chartW} ${height}`}
-          onMouseMove={(e)=>{
-            const i = indexFromClientX(e.clientX, e.currentTarget)
-            if (i >= 0) setHover({i, x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY})
-          }}
-          onMouseLeave={()=>setHover(null)}
-          onMouseDown={(e)=>{ const i = indexFromClientX(e.clientX, e.currentTarget); if (i>=0) setDrag({start: i}) }}
-          onMouseUp={(e)=>{ if (!drag) return; const i = indexFromClientX(e.clientX, e.currentTarget); const start = Math.min(drag.start, i); const end = Math.max(drag.start, i); setDrag(null); if (totals[start] && totals[end]) { const fromISO = normISO(totals[start].bucket); const endTime = new Date(normISO(totals[end].bucket)).getTime() + bucketMs - 1; const toISO = new Date(endTime).toISOString(); setTimeSel({from: fromISO, to: toISO}); } }}
-        >
-          <rect x={0} y={0} width={chartW} height={height} fill="transparent" />
-          {/* horizontal gridlines */}
-          {yTicks.map((v, idx) => {
-            const y = height - pad - (v / maxSum) * (height - pad*2)
-            return (
-              <g key={idx}>
-                <line x1={pad} x2={chartW - pad} y1={y} y2={y} stroke="#64748b" strokeOpacity={0.25} strokeDasharray="3 4" />
-                <text x={pad - 6} y={y + 4} textAnchor="end" fontSize={10} fill="#94a3b8">{v}</text>
-              </g>
-            )
-          })}
-          {/* x-axis baseline */}
-          <line x1={pad} x2={chartW - pad} y1={height - pad} y2={height - pad} stroke="#64748b" strokeOpacity={0.35} />
-          {/* x ticks */}
-          {xTicks.map((i, idx) => {
-            const x = pad + i * step + (step * 0.3)
-            const label = totals[i] ? new Date(normISO(totals[i].bucket)).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''
-            return (
-              <g key={idx}>
-                <line x1={x} x2={x} y1={height - pad} y2={height - pad + 4} stroke="#64748b" strokeOpacity={0.6} />
-                <text x={x} y={height - pad + 16} textAnchor="middle" fontSize={10} fill="#94a3b8">{label}</text>
-              </g>
-            )
-          })}
-          {totals.map((r: any, i: number) => {
-            const barW = Math.max(2, step * 0.6)
-            const x = pad + i * step + (step - barW)/2
-            let inSel = false
-            if (timeSel) {
-              const bStart = new Date(normISO(r.bucket)).getTime()
-              const fromMs = new Date(timeSel.from).getTime()
-              const toMs = new Date(timeSel.to).getTime()
-              inSel = bStart >= fromMs && bStart <= toMs
-            }
-            // stacked segments: info (bottom), warning (middle), error (top)
-            const area = height - pad*2
-            const hInfo = r.info ? Math.max(1, (r.info / maxSum) * area) : 0
-            const hWarn = r.warning ? Math.max(1, (r.warning / maxSum) * area) : 0
-            const hErr  = r.error ? Math.max(1, (r.error  / maxSum) * area) : 0
-            let yBase = height - pad
-            const seg = [] as any[]
-            if (hInfo) { yBase -= hInfo; seg.push(<rect key={`i-${i}`} x={x} y={yBase} width={barW} height={hInfo} rx={1.5} fill="#60a5fa" opacity={inSel?0.95:0.75} />) }
-            if (hWarn) { yBase -= hWarn; seg.push(<rect key={`w-${i}`} x={x} y={yBase} width={barW} height={hWarn} rx={1.5} fill="#f59e0b" opacity={inSel?0.95:0.75} />) }
-            if (hErr)  { yBase -= hErr;  seg.push(<rect key={`e-${i}`} x={x} y={yBase} width={barW} height={hErr}  rx={1.5} fill="#ef4444" opacity={inSel?0.95:0.8} />) }
-            return <g key={i}>{seg}</g>
-          })}
-          {/* hover guideline */}
-          {hover && totals[hover.i] && (
-            <line x1={pad + hover.i * step + (step * 0.3)} x2={pad + hover.i * step + (step * 0.3)} y1={pad} y2={height - pad} stroke="#94a3b8" strokeOpacity={0.35} />
-          )}
-          {drag && (
-            <rect x={pad + Math.min(drag.start, hover?.i ?? drag.start) * step} y={pad} width={Math.abs(((hover?.i ?? drag.start) - drag.start) * step)} height={height - pad*2} className="fill-blue-500/20" />
-          )}
-        </svg>
-        {hover && totals[hover.i] && (
-          <div className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-lg border border-slate-800/60 bg-slate-900/90 px-3 py-2 text-xs text-slate-100" style={{ left: hover.x, top: hover.y }}>
-            <div className="font-semibold">count(message) {totals[hover.i].count}</div>
-            <div className="text-slate-300">{new Date(totals[hover.i].bucket).toLocaleString()}</div>
-          </div>
-        )}
+        <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
+          <span>count(logs)</span>
+          <span className="text-slate-300">
+            {(() => {
+              const now = new Date()
+              const end = timeSel ? new Date(timeSel.to) : now
+              const minutes = (range==='1h'?60:range==='24h'?1440:range==='7d'?10080:range==='30d'?43200:range==='90d'?129600:525600)
+              const start = timeSel ? new Date(timeSel.from) : new Date(now.getTime() - minutes*60*1000)
+              const fmtOpts: any = { year: 'numeric', month: 'short', day: '2-digit' }
+              return `${start.toLocaleDateString(undefined, fmtOpts)} — ${end.toLocaleDateString(undefined, fmtOpts)}`
+            })()}
+          </span>
         </div>
-        <div className="mt-2 text-xs text-slate-400">Tip: Drag on the chart to filter by time range (logs and dashboard will sync).</div>
+        <div className="w-full">
+          <div style={{ width: '100%', height: 220 }}>
+            { /* @ts-ignore */ }
+            <ReactECharts
+              echarts={echarts as any}
+              style={{ width: '100%', height: 220, cursor: 'crosshair' }}
+              option={{
+                legend: { data: ['error','warning','info'], textStyle: { color: '#cbd5e1' }, top: 0, selected: legendSel },
+                grid: { left: 40, right: 16, top: 26, bottom: 40 },
+                tooltip: {
+                  trigger: 'axis',
+                  axisPointer: { type: 'shadow' },
+                  formatter: (params: any[]) => {
+                    if (!params?.length) return ''
+                    const t = new Date(params[0].value[0])
+                    const lines = [fmtDate(t.toISOString())]
+                    let total = 0
+                    params.forEach(p => { total += p.value[1] })
+                    lines.push(`total: ${total}`)
+                    params.forEach(p => lines.push(`${p.seriesName}: ${p.value[1]}`))
+                    return lines.join('<br/>')
+                  }
+                },
+                xAxis: { type: 'time', axisLabel: { color: '#94a3b8' }, axisLine: { lineStyle: { color: '#64748b' } } },
+                yAxis: { type: 'value', min: 0, axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#64748b', opacity: 0.25, type: 'dashed' } } },
+                // wheel/pinch zoom inside; no slider UI (persist selected range)
+                dataZoom: [ Object.assign({ type: 'inside', zoomOnMouseWheel: true, moveOnMouseWheel: false, moveOnMouseMove: false }, (zoomStart!=null&&zoomEnd!=null)?{ startValue: zoomStart, endValue: zoomEnd }:{} ) ],
+                // enable drag-to-select across x axis (like Sentry)
+                brush: { xAxisIndex: 0, brushType: 'lineX', brushMode: 'single', transformable: false, throttleType: 'debounce', throttleDelay: 120 },
+                series: [
+                  { name:'error', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#ef4444' }, data: totals.map(r=>[new Date(normISO(r.bucket)).getTime(), r.error]) },
+                  { name:'warning', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#f59e0b' }, data: totals.map(r=>[new Date(normISO(r.bucket)).getTime(), r.warning]) },
+                  { name:'info', type:'bar', stack:'total', barMaxWidth: 28, itemStyle:{ color:'#60a5fa' }, data: totals.map(r=>[new Date(normISO(r.bucket)).getTime(), r.info]) },
+                ],
+              }}
+              onChartReady={(inst: any) => {
+                // Activate brush cursor globally without toolbox
+                try {
+                  chartInstRef.current = inst
+                  inst.dispatchAction({ type: 'takeGlobalCursor', key: 'brush', brushOption: { brushType: 'lineX', brushMode: 'single' } })
+                } catch {}
+              }}
+              onEvents={{
+                click: (p: any) => {
+                  // Clicking a bar filters to that bucket's time window
+                  const pt = Array.isArray(p?.data) ? p.data[0] : null
+                  if (pt != null) {
+                    const fromISO = new Date(pt).toISOString()
+                    const toISO = new Date(pt + bucketMs - 1).toISOString()
+                    setTimeSel({ from: fromISO, to: toISO })
+                    try {
+                      setZoomStart(pt); setZoomEnd(pt + bucketMs - 1)
+                      chartInstRef.current?.dispatchAction({ type: 'dataZoom', startValue: pt, endValue: pt + bucketMs - 1 })
+                    } catch {}
+                  }
+                },
+                datazoom: (e: any) => {
+                  const sv = (e as any).startValue
+                  const ev = (e as any).endValue
+                  if (sv != null && ev != null) {
+                    const fromISO = new Date(sv).toISOString()
+                    const toISO = new Date(ev + bucketMs - 1).toISOString()
+                    setTimeSel({ from: fromISO, to: toISO })
+                    setZoomStart(sv); setZoomEnd(ev)
+                  } else if (e.start != null && totals.length > 1) {
+                    const si = Math.max(0, Math.round(e.start / 100 * (totals.length - 1)))
+                    const ei = Math.max(si, Math.round(e.end / 100 * (totals.length - 1)))
+                    const fromISO = normISO(totals[si].bucket)
+                    const toISO = new Date(new Date(normISO(totals[ei].bucket)).getTime() + bucketMs - 1).toISOString()
+                    setTimeSel({ from: fromISO, to: toISO })
+                    const fromVal = new Date(normISO(totals[si].bucket)).getTime()
+                    const toVal = new Date(normISO(totals[ei].bucket)).getTime()
+                    setZoomStart(fromVal); setZoomEnd(toVal)
+                  }
+                },
+                brushselected: (e: any) => {
+                  const batch = e?.batch?.[0]
+                  if (batch && batch.areas && batch.areas.length > 0) {
+                    const range = batch.areas[0].coordRange
+                    if (range && range.length === 2) {
+                      const fromVal = range[0]
+                      const toVal = range[1]
+                      if (brushTimer.current) clearTimeout(brushTimer.current)
+                      brushTimer.current = setTimeout(() => {
+                        const fromISO = new Date(fromVal).toISOString()
+                        const toISO = new Date(toVal + bucketMs - 1).toISOString()
+                        setTimeSel({ from: fromISO, to: toISO })
+                        try {
+                          setZoomStart(fromVal); setZoomEnd(toVal)
+                          chartInstRef.current?.dispatchAction({ type: 'dataZoom', startValue: fromVal, endValue: toVal })
+                          chartInstRef.current?.dispatchAction({ type: 'brush', areas: [] })
+                        } catch {}
+                      }, 180)
+                    }
+                  }
+                },
+                legendselectchanged: (e: any) => {
+                  const sel = e?.selected || {}
+                  setLegendSel(sel)
+                  // Sync to server filter if exactly one level is selected
+                  const active = Object.keys(sel).filter(k => sel[k])
+                  if (active.length === 1) setFilterLevel(active[0])
+                  else setFilterLevel('')
+                }
+              }}
+            />
+          </div>
+        </div>
+        <div className="mt-2 text-xs text-slate-400">Tip: Use the chart zoom to filter time range (logs and dashboard sync).</div>
       </div>
 
 

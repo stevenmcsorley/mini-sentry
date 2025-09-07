@@ -2,7 +2,7 @@ from rest_framework.routers import DefaultRouter
 from django.urls import path, include
 from django.http import JsonResponse
 
-from .views import ProjectViewSet, EventViewSet, GroupViewSet, ReleaseViewSet, SymbolicateView, AlertRuleViewSet, SessionIngestView, ReleaseHealthView, ReleaseHealthSeriesView, DeploymentViewSet
+from .views import ProjectViewSet, EventViewSet, GroupViewSet, ReleaseViewSet, SymbolicateView, AlertRuleViewSet, SessionIngestView, ReleaseHealthView, ReleaseHealthSeriesView, DeploymentViewSet, EventSeriesView, TopGroupsView
 
 router = DefaultRouter()
 router.register(r"projects", ProjectViewSet, basename="project")
@@ -19,4 +19,6 @@ urlpatterns = [
     path("sessions/ingest/token/<str:token>/", SessionIngestView.as_view()),
     path("releases/health/", ReleaseHealthView.as_view()),
     path("releases/health/series/", ReleaseHealthSeriesView.as_view()),
+    path("dashboard/series/", EventSeriesView.as_view()),
+    path("dashboard/top-groups/", TopGroupsView.as_view()),
 ]

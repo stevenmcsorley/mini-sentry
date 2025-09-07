@@ -63,9 +63,8 @@ export function initMiniSentry(opts: MiniSentryOptions) {
 
   return {
     captureException: (err: any, extra?: Record<string, any>) =>
-      send({ message: err?.message || String(err), stack: err?.stack, extra }),
-    captureMessage: (message: string, extra?: Record<string, any>) => send({ message, extra }),
+      send({ message: err?.message || String(err), stack: err?.stack, extra, level: (extra as any)?.level || (extra as any)?.severity }),
+    captureMessage: (message: string, extra?: Record<string, any>) => send({ message, extra, level: (extra as any)?.level || (extra as any)?.severity }),
     sendSession,
   }
 }
-

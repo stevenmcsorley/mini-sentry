@@ -1,6 +1,6 @@
 {
   "name": "@mini-sentry/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lightweight client to send events and sessions to Mini Sentry backend",
   "license": "MIT",
   "type": "module",

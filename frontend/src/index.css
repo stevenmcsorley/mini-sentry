@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light polish for code blocks */
+code, pre { @apply bg-slate-900/70 text-slate-100 rounded; }
+

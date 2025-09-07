@@ -46,6 +46,19 @@ ms.sendSession('ok')
 ms.sendSession('crashed')
 ```
 
+JS apps (no TypeScript)
+
+The package ships compiled JS (ESM/CJS/IIFE) with optional type definitions. You can use it from plain JS apps:
+
+```js
+import { initMiniSentry, MiniSentryErrorBoundary } from '@mini-sentry/client'
+const ms = initMiniSentry({ token: 'PASTE_TOKEN', baseUrl: 'http://localhost:8000' })
+// Optional: ErrorBoundary for React render errors
+// createRoot(el).render(<MiniSentryErrorBoundary client={ms}><App /></MiniSentryErrorBoundary>)
+// Manual capture
+ms.captureMessage('hello', { level: 'info' })
+```
+
 Usage (UMD/IIFE)
 
 ```html

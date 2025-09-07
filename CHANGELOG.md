@@ -37,3 +37,10 @@ All notable changes to this project are documented here.
 ## 0.1.0 — 2025-09-06
 
 - Initial scaffold: Django app with REST endpoints, Celery worker/beat, Postgres, Redis, Docker Compose, minimal ingest and admin.
+## 0.7.1 — 2025-09-07
+
+- Logs UI: sidebar navigation, wide layout, chart tooltip + brush selection.
+- URL state: persist view/project/search/filters/time in hash.
+- Server: `GET /api/events` supports `from`/`to` ISO params.
+- Level handling: normalize incoming levels (warn→warning, fatal→error, etc.).
+- Client: `@mini-sentry/client@0.1.1` forwards `extra.level|extra.severity` to top-level `level`.

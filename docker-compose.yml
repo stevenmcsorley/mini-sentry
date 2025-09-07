@@ -123,5 +123,53 @@ services:
     depends_on:
       - web
 
+  fastapi-example:
+    build:
+      context: ./examples/python-fastapi
+      dockerfile: Dockerfile
+    environment:
+      - MS_BASE=http://web:8000
+      - MS_TOKEN=CHANGE_ME
+    ports:
+      - "5002:5002"
+    depends_on:
+      - web
+
+  flask-example:
+    build:
+      context: ./examples/python-flask
+      dockerfile: Dockerfile
+    environment:
+      - MS_BASE=http://web:8000
+      - MS_TOKEN=CHANGE_ME
+    ports:
+      - "5001:5001"
+    depends_on:
+      - web
+
+  express-example:
+    build:
+      context: ./examples/node-express
+      dockerfile: Dockerfile
+    environment:
+      - MS_BASE=http://web:8000
+      - MS_TOKEN=CHANGE_ME
+    ports:
+      - "4000:4000"
+    depends_on:
+      - web
+
+  sinatra-example:
+    build:
+      context: ./examples/ruby-sinatra
+      dockerfile: Dockerfile
+    environment:
+      - MS_BASE=http://web:8000
+      - MS_TOKEN=CHANGE_ME
+    ports:
+      - "5003:5003"
+    depends_on:
+      - web
+
 volumes:
   pgdata:

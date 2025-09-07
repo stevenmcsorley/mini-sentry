@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Event, Group, Release, Artifact, AlertRule, AlertTarget, AlertState, ReleaseDeployment, Session
+from .models import Project, Event, Group, Release, Artifact, AlertRule, AlertTarget, AlertState, ReleaseDeployment, Session, Comment
 
 
 @admin.register(Project)
@@ -17,8 +17,8 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
-    list_display = ("id", "project", "title", "level", "count", "last_seen")
-    list_filter = ("level", "project")
+    list_display = ("id", "project", "title", "level", "count", "status", "assignee", "last_seen")
+    list_filter = ("level", "status", "project")
     search_fields = ("title", "fingerprint")
 
 
@@ -65,3 +65,9 @@ class SessionAdmin(admin.ModelAdmin):
     list_display = ("id", "project", "session_id", "status", "environment", "updated_at")
     list_filter = ("project", "status", "environment")
     search_fields = ("session_id", "user")
+
+
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
+    list_display = ("id", "group", "author", "created_at")
+    search_fields = ("author", "body")

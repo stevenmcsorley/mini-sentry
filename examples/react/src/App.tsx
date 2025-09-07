@@ -40,8 +40,9 @@ export function App({ ms }: { ms: MSClient }) {
     const s = () => t()
     s()
   }
-  const sendMessage = () => ms.captureMessage('A test message from React example', { foo: 'bar' })
+  const sendMessage = () => ms.captureMessage('A test message from React example', { foo: 'bar', level: 'error' })
   const sendWarning = () => ms.captureMessage('A warning from React example', { level: 'warning' })
+  const sendInfo = () => ms.captureMessage('An info from React example', { level: 'info' })
   const spamErrors = async () => { for (let i = 0; i < 10; i++) try { throwError() } catch { /* global handler */ } }
 
   const ensureRelease = async () => {
@@ -139,7 +140,8 @@ export function App({ ms }: { ms: MSClient }) {
         <section>
           <h3>Events</h3>
           <button onClick={throwError}>Throw error (stack)</button>
-          <button onClick={sendMessage}>Send message</button>
+          <button onClick={sendMessage}>Send error message</button>
+          <button onClick={sendInfo}>Send info</button>
           <button onClick={sendWarning}>Send warning</button>
           <button onClick={spamErrors}>Spam 10 errors</button>
         </section>

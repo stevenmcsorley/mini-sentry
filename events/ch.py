@@ -46,3 +46,68 @@ def query_session_series(project: str, minutes: int = 1440, bucket: str = '5m'):
         ORDER BY bucket
     """
     return get_client().query(sql, parameters={"project": project, "minutes": minutes}).result_rows
+
+
+def query_events_series_by_level(project: str, minutes: int = 60, bucket: str = '5m', from_iso: str | None = None, to_iso: str | None = None):
+    client = get_client()
+    # Determine granularity function
+    if bucket == '1h':
+        trunc = 'toStartOfHour'
+    elif bucket.endswith('m'):
+        trunc = 'toStartOfFiveMinutes' if bucket == '5m' else 'toStartOfMinute'
+    else:
+        trunc = 'toStartOfFiveMinutes'
+    if from_iso and to_iso:
+        sql = f"""
+            SELECT {trunc}(toDateTime(received_at)) AS bucket, level, count() AS c
+            FROM sentry.events
+            WHERE project = %(project)s
+              AND received_at BETWEEN parseDateTimeBestEffort(%(from)s) AND parseDateTimeBestEffort(%(to)s)
+            GROUP BY bucket, level
+            ORDER BY bucket
+        """
+        params = {"project": project, "from": from_iso, "to": to_iso}
+    else:
+        sql = f"""
+            SELECT {trunc}(toDateTime(received_at)) AS bucket, level, count() AS c
+            FROM sentry.events
+            WHERE project = %(project)s AND received_at >= now() - toIntervalMinute(%(minutes)s)
+            GROUP BY bucket, level
+            ORDER BY bucket
+        """
+        params = {"project": project, "minutes": minutes}
+    rows = client.query(sql, parameters=params).result_rows
+    # Fold rows into series with columns per level
+    out = {}
+    for b, level, c in rows:
+        key = str(b)
+        if key not in out:
+            out[key] = {"bucket": key, "error": 0, "warning": 0, "info": 0}
+        out[key][level] = int(c)
+    return list(out.values())
+
+
+def query_top_groups(project: str, minutes: int = 60, limit: int = 10, from_iso: str | None = None, to_iso: str | None = None):
+    client = get_client()
+    if from_iso and to_iso:
+        sql = """
+            SELECT fingerprint, any(title) AS title, count() AS c
+            FROM sentry.events
+            WHERE project = %(project)s
+              AND received_at BETWEEN parseDateTimeBestEffort(%(from)s) AND parseDateTimeBestEffort(%(to)s)
+            GROUP BY fingerprint
+            ORDER BY c DESC
+            LIMIT %(limit)s
+        """
+        params = {"project": project, "from": from_iso, "to": to_iso, "limit": limit}
+    else:
+        sql = """
+            SELECT fingerprint, any(title) AS title, count() AS c
+            FROM sentry.events
+            WHERE project = %(project)s AND received_at >= now() - toIntervalMinute(%(minutes)s)
+            GROUP BY fingerprint
+            ORDER BY c DESC
+            LIMIT %(limit)s
+        """
+        params = {"project": project, "minutes": minutes, "limit": limit}
+    return client.query(sql, parameters=params).result_rows

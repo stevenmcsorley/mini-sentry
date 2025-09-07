@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Event, Project, Group, Release, Artifact, AlertRule, AlertTarget, Session, ReleaseDeployment
+from .models import Event, Project, Group, Release, Artifact, AlertRule, AlertTarget, Session, ReleaseDeployment, Comment
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -22,6 +22,7 @@ class EventSerializer(serializers.ModelSerializer):
             "received_at",
             "release",
             "environment",
+            "tags",
             "stack",
             "symbolicated",
         ]
@@ -38,6 +39,10 @@ class GroupSerializer(serializers.ModelSerializer):
             "count",
             "first_seen",
             "last_seen",
+            "status",
+            "resolved_at",
+            "assignee",
+            "is_bookmarked",
         ]
 
 
@@ -115,3 +120,9 @@ class ReleaseDeploymentSerializer(serializers.ModelSerializer):
             "date_started",
             "date_finished",
         ]
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ["id", "group", "author", "body", "created_at"]

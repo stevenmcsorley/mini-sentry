@@ -63,6 +63,75 @@ Sentry’s production stack includes:
 
 This repo mirrors a smaller but integrated set (Django, Celery, Redis, Postgres, Kafka, ClickHouse, basic Snuba-like consumer, React UI).
 
+## Stack Overview (This Project)
+
+- Backend: Django REST API (+ Celery worker/beat) for ingest, groups, releases/artifacts, sessions, alerts, and dashboard.
+- Storage: PostgreSQL (primary relational store), Redis (cache + Celery broker/result backend).
+- Stream/OLAP: Kafka (events/sessions topics) + Snuba-like consumer → ClickHouse (OLAP for series/top groups/health).
+- Frontend: React + Vite dev server (Tailwind, dark mode), with Logs view (token search + brush), Groups/actions, Releases/Artifacts, Deployments, Release Health, and a Dashboard.
+- Client SDKs: TypeScript package `@mini-sentry/client` and plain JS examples (`examples/js-client`: ESM + IIFE) for apps without TS/bundlers.
+- Symbolication: Upload JS sourcemaps as release artifacts; ingest performs best-effort symbolication; UI falls back to `POST /api/symbolicate/` when needed.
+- Alerts: Email/Webhook targets, snooze/unsnooze, rate limiting and windowed thresholds.
+- Orchestration: Docker Compose services — `web`, `worker`, `beat`, `postgres`, `redis`, `kafka`, `clickhouse`, `snuba`, `frontend`.
+  - Ports: API 8000, UI 5173, Example UI 5174, Postgres 5432, Redis 6379, Kafka 9092, ClickHouse 8123.
+- CORS/Proxy: CORS enabled for dev via `django-cors-headers`; in app UIs use a dev proxy for `/api` or set `baseUrl` to the backend origin.
+- URL State: Logs view persists `view/project/q/level/env/release/from/to` in the URL hash; Dashboard respects `from/to` so charts match the Logs brush selection.
+
+High‑level data flow
+1) App/UI → `POST /api/events/ingest/token/{token}` (and optional `sessions` ingest)
+2) Django stores event in Postgres, evaluates alerts, publishes to Kafka
+3) Snuba-like consumer reads Kafka and writes rollups to ClickHouse
+4) UI reads recent events/groups from Postgres; dashboard series/top groups from ClickHouse
+5) Sourcemaps uploaded to a matching Release enable symbolicated stacks in event detail
+
+## Examples
+
+This repo includes runnable examples for several stacks under `examples/`:
+
+- React (Vite): full test lab with sourcemap uploader (`examples/react`)
+- Plain JS client: ESM + IIFE drop‑in clients (`examples/js-client`)
+- Node.js (Express): minimal server + error-handling middleware (`examples/node-express`)
+- Python (Flask): app with a global error handler (`examples/python-flask`)
+- Python (FastAPI): app with a global exception handler (`examples/python-fastapi`)
+- Go (net/http): minimal POST example (`examples/go-nethttp`)
+- Ruby: Rails middleware (`examples/ruby-rails`), Sinatra app (`examples/ruby-sinatra`)
+- Next.js: API route + client init (`examples/node-nextjs`)
+- Vue and Angular: client init guides (`examples/vue-vite`, `examples/angular`)
+- AWS Lambda (Node.js): handler + Serverless snippet (`examples/serverless-aws`)
+
+Compose services:
+- `fastapi-example` and `flask-example` can be brought up with Docker Compose; set `MS_TOKEN` in `docker-compose.yml`.
+
+See `examples/README.md` for commands and details.
+
+```mermaid
+flowchart LR
+  subgraph Client Apps
+    A[JS/React Apps\n@mini-sentry/client or JS client]
+  end
+  subgraph Django Backend
+    API[REST API / Celery]
+    PG[(Postgres)]
+    R[Redis]
+  end
+  subgraph Stream/OLAP
+    K[(Kafka)]
+    SN[Snuba-like Consumer]
+    CH[(ClickHouse)]
+  end
+  UI[React UI]
+
+  A -->|/api/events| API
+  A -->|/api/sessions| API
+  API --> PG
+  API -->|alerts| R
+  API -->|publish| K
+  SN --> CH
+  K --> SN
+  UI -->|/api/events, /api/groups| PG
+  UI -->|/api/dashboard/*| CH
+```
+
 ## Development
 
 - Web service: `http://localhost:8000`
@@ -84,6 +153,8 @@ This repo mirrors a smaller but integrated set (Django, Celery, Redis, Postgres,
 - Create releases, upload artifacts (source maps), and view symbolicated stacks.
 - Create deployments and ingest sessions; view health summary and time series.
 - Create/edit alert rules, add alert targets, and snooze rules per group.
+- Server‑side search for Events and Groups (search box + filters).
+- Minimal Dashboard (time series + Top Groups), with range/interval controls.
 
 ## API Docs
 
@@ -156,23 +227,31 @@ Dev/prod tips
   - Browse Events, Groups, Releases, Artifacts, Alert Rules, Deployments.
 - APIs (for automation/dashboards)
   - Events (PG): `GET /api/events/?project=<slug>`
+    - Supports absolute time range: `from=<ISO8601>&to=<ISO8601>`
+      - Example: `/api/events/?project=my-app&from=2025-09-07T00:00:00Z&to=2025-09-07T01:00:00Z`
+    - Supports server‑side search via `q` parameter with tokens:
+      - Events tokens: `level:<error|warning|info>`, `env:<name>`, `release:<version>`, `message:<substring>`, plus bare words (matched on message).
+      - Example: `GET /api/events/?project=my-app&q=level:error env:production timeout`.
   - Groups: `GET /api/groups/?project=<slug>`
+    - Supports search via `q` with tokens: `status:<open|resolved|ignored>`, `assignee:<user>`, `title:"quoted phrase"`, plus bare words (matched on title).
+      - Example: `GET /api/groups/?project=my-app&q=status:open title:"database error"`.
   - Event detail: `GET /api/events/{id}/` (includes symbolicated frames)
   - Events (ClickHouse): `GET /api/events/clickhouse?project=<slug>&limit=100`
   - Health summary: `GET /api/releases/health/?project=<slug>`
   - Health time series: `GET /api/releases/health/series/?project=<slug>&range=24h&interval=5m[&backend=ch]`
+  - Dashboard:
+    - Series (EPM by level): `GET /api/dashboard/series/?project=<slug>&range=1h|24h&interval=5m|1h[&backend=ch]`
+    - Top Groups: `GET /api/dashboard/top-groups/?project=<slug>&range=24h&limit=10[&backend=ch]`
 
-### Live dashboard
+### Dashboard
 
-The project includes health endpoints and a CH query API, but it does not yet ship with a full “live dashboard” (charts of error rate, top groups, breakdowns). If you want one, I can add a Dashboard page with:
+A minimal Dashboard is included in the UI (above Releases, and as a tab in the refactored layout):
 
-- Errors per minute (EPM) by level (CH time-series)
-- Top groups by count over selectable range
-- Recent spike detector (thresholded deltas)
-- Release comparison (errors/100 sessions)
-- Auto-refresh/polling or WebSocket push
+- Errors per minute (EPM) by level (basic SVG line chart)
+- Top Groups over a selectable time range
+- Range and interval pickers
 
-This would leverage existing endpoints or dedicated CH queries. Tell me if you want me to build it next.
+Planned enhancements: per‑level breakdowns, spike detector, release comparisons, and auto‑refresh.
 
 ## Frontend Telemetry (Optional)
 
@@ -196,6 +275,14 @@ Note: The UI dev server proxies `/api` to the backend container `web:8000`.
 - Health time series (ClickHouse): add `&backend=ch` to use ClickHouse rollups.
 
 The React UI includes simple buttons to submit ok/crashed sessions and display crash-free rates.
+
+## Frontend Search & Actions (Examples)
+
+- Try these in the project page’s Search box:
+  - Events examples: `level:error`, `env:production`, `release:1.2.3`, `message:db`, `timeout` (bare term)
+  - Groups examples: `status:open`, `assignee:alice`, `title:"api failed"`, `payment`
+- Group actions available from the Groups table:
+  - Resolve / Unresolve / Ignore / Assign / Comment (and Snooze if an alert rule exists)
 
 ## Source Maps (JS)
 

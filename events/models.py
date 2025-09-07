@@ -36,6 +36,7 @@ class Event(models.Model):
     )
     release = models.ForeignKey("Release", null=True, blank=True, on_delete=models.SET_NULL, related_name="events")
     environment = models.CharField(max_length=64, default="production")
+    tags = models.JSONField(default=list, blank=True)
     stack = models.TextField(null=True, blank=True)
     symbolicated = models.JSONField(default=dict, blank=True)
 
@@ -51,6 +52,18 @@ class Group(models.Model):
     count = models.PositiveIntegerField(default=0)
     first_seen = models.DateTimeField(default=timezone.now)
     last_seen = models.DateTimeField(default=timezone.now)
+    STATUS_UNRESOLVED = "unresolved"
+    STATUS_RESOLVED = "resolved"
+    STATUS_IGNORED = "ignored"
+    STATUS_CHOICES = (
+        (STATUS_UNRESOLVED, "unresolved"),
+        (STATUS_RESOLVED, "resolved"),
+        (STATUS_IGNORED, "ignored"),
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UNRESOLVED, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    assignee = models.CharField(max_length=200, blank=True, default="")
+    is_bookmarked = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ("project", "fingerprint")
@@ -84,6 +97,16 @@ class Artifact(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.release}::{self.name}"
+
+
+class Comment(models.Model):
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="comments")
+    author = models.CharField(max_length=200, default="system")
+    body = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"comment:{self.group_id}:{self.author}"
 
 
 class AlertRule(models.Model):

@@ -1,4 +1,6 @@
 from rest_framework import viewsets, mixins, status
+from rest_framework.pagination import LimitOffsetPagination
+import os
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
@@ -6,8 +8,9 @@ from django.shortcuts import get_object_or_404
 
 from django.db.models import F
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
-from .models import Event, Project, Group, Release, AlertRule, AlertTarget, Session, ReleaseDeployment
+from .models import Event, Project, Group, Release, AlertRule, AlertTarget, Session, ReleaseDeployment, Comment
 from .serializers import (
     EventSerializer,
     ProjectSerializer,
@@ -18,13 +21,14 @@ from .serializers import (
     AlertTargetSerializer,
     SessionSerializer,
     ReleaseDeploymentSerializer,
+    CommentSerializer,
 )
 from django.conf import settings
 from .tasks import process_event
 from .grouping import compute_fingerprint
 from .ratelimit import check_rate_limit
 from .kafka import publish_event
-from .ch import query_events, query_session_series
+from .ch import query_events, query_session_series, query_events_series_by_level, query_top_groups
 from .symbolication import symbolicate_frames_for_release
 
 
@@ -36,13 +40,106 @@ class ProjectViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.Ge
 class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Event.objects.all().order_by("-received_at")
     serializer_class = EventSerializer
+    class EventPagination(LimitOffsetPagination):
+        default_limit = int(os.environ.get("API_PAGE_SIZE", "50"))
+        max_limit = int(os.environ.get("API_MAX_PAGE_SIZE", "1000"))
+    pagination_class = EventPagination
 
     def get_queryset(self):
         qs = super().get_queryset()
         project = self.request.query_params.get("project")
         if project:
             qs = qs.filter(project__slug=project)
+        level = self.request.query_params.get("level")
+        if level:
+            qs = qs.filter(level=level)
+        env = self.request.query_params.get("environment")
+        if env:
+            qs = qs.filter(environment=env)
+        rel = self.request.query_params.get("release")
+        if rel:
+            qs = qs.filter(release__version=rel)
+        # Optional absolute time range filtering
+        from_param = self.request.query_params.get("from")
+        to_param = self.request.query_params.get("to")
+        if from_param:
+            dt = parse_datetime(from_param)
+            if dt:
+                qs = qs.filter(received_at__gte=dt)
+        if to_param:
+            dt = parse_datetime(to_param)
+            if dt:
+                qs = qs.filter(received_at__lte=dt)
+
+        q = self.request.query_params.get("q")
+        if q:
+            tokens = [t for t in q.split() if t]
+            text_terms = []
+            for t in tokens:
+                if ":" in t:
+                    k, v = t.split(":", 1)
+                elif " is " in t:
+                    k, v = t.split(" is ", 1)
+                else:
+                    k, v = None, None
+                if k:
+                    k = k.lower()
+                    if k in ("level", "severity"):
+                        qs = qs.filter(level=v)
+                    elif k in ("env", "environment"):
+                        qs = qs.filter(environment=v)
+                    elif k == "release":
+                        qs = qs.filter(release__version=v)
+                    elif k == "message":
+                        qs = qs.filter(message__icontains=v)
+                else:
+                    text_terms.append(t)
+            if text_terms:
+                from django.db.models import Q
+                qobj = Q()
+                for term in text_terms:
+                    qobj |= Q(message__icontains=term)
+                qs = qs.filter(qobj)
         return qs
+
+    def _normalize_level(self, payload: dict) -> str:
+        """Derive a normalized level from common fields.
+        Priority: payload.level -> payload.severity/severity_text -> payload.extra.level -> payload.extra.severity -> severity_number -> 'error'
+        Maps warn/warning to 'warning'; debug/trace -> 'info'; fatal -> 'error'.
+        """
+        def map_text(v: str | None) -> str | None:
+            if not v:
+                return None
+            t = str(v).strip().lower()
+            if t in {"warn", "warning"}:
+                return "warning"
+            if t in {"err", "error", "fatal"}:
+                return "error"
+            if t in {"info", "log", "notice", "debug", "trace"}:
+                return "info"
+            return t
+
+        level = (
+            map_text(payload.get("level"))
+            or map_text(payload.get("severity"))
+            or map_text(payload.get("severity_text"))
+            or map_text((payload.get("extra") or {}).get("level"))
+            or map_text((payload.get("extra") or {}).get("severity"))
+        )
+        if not level:
+            try:
+                sev_num = int(payload.get("severity_number")) if payload.get("severity_number") is not None else None
+            except Exception:
+                sev_num = None
+            if sev_num is not None:
+                # OpenTelemetry: 1-4 trace, 5-8 debug, 9-12 info, 13-16 warn, 17-20 error, 21-24 fatal
+                if 13 <= sev_num <= 16:
+                    level = "warning"
+                elif 17 <= sev_num <= 24:
+                    level = "error"
+                else:
+                    level = "info"
+        return level or "error"
 
     @action(detail=False, methods=["post"], url_path="ingest/(?P<project_slug>[^/.]+)")
     def ingest(self, request, project_slug=None):
@@ -53,7 +150,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             return Response({"detail": "Rate limit exceeded"}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         payload = request.data or {}
         message = payload.get("message", "")
-        level = payload.get("level", "error")
+        level = self._normalize_level(payload)
         release = self._get_or_create_release(project, payload)
         env = payload.get("environment", "production")
         stack = payload.get("stack")
@@ -68,6 +165,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             release=release,
             environment=env,
             stack=stack,
+            tags=payload.get("tags", []),
         )
         # Inline symbolication (best-effort)
         try:
@@ -138,7 +236,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             return Response({"detail": "Rate limit exceeded"}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         payload = request.data or {}
         message = payload.get("message", "")
-        level = payload.get("level", "error")
+        level = self._normalize_level(payload)
         release = self._get_or_create_release(project, payload)
         env = payload.get("environment", "production")
         stack = payload.get("stack")
@@ -153,6 +251,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             release=release,
             environment=env,
             stack=stack,
+            tags=payload.get("tags", []),
         )
         try:
             if release and (frames or stack):
@@ -223,7 +322,106 @@ class GroupViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         project = self.request.query_params.get("project")
         if project:
             qs = qs.filter(project__slug=project)
+        # Optional absolute time range filter on last_seen
+        from django.utils.dateparse import parse_datetime as _parse_dt
+        from_param = self.request.query_params.get("from")
+        to_param = self.request.query_params.get("to")
+        if from_param:
+            dt = _parse_dt(from_param)
+            if dt:
+                qs = qs.filter(last_seen__gte=dt)
+        if to_param:
+            dt = _parse_dt(to_param)
+            if dt:
+                qs = qs.filter(last_seen__lte=dt)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        q = self.request.query_params.get("q")
+        if q:
+            tokens = [t for t in q.split() if t]
+            text_terms = []
+            for t in tokens:
+                if ":" in t:
+                    k, v = t.split(":", 1)
+                elif " is " in t:
+                    k, v = t.split(" is ", 1)
+                else:
+                    k, v = None, None
+                if k:
+                    k = k.lower()
+                    if k == "status":
+                        qs = qs.filter(status=v)
+                    elif k == "assignee":
+                        qs = qs.filter(assignee__iexact=v)
+                    elif k == "title":
+                        qs = qs.filter(title__icontains=v)
+                else:
+                    text_terms.append(t)
+            if text_terms:
+                from django.db.models import Q
+                qobj = Q()
+                for term in text_terms:
+                    qobj |= Q(title__icontains=term)
+                qs = qs.filter(qobj)
         return qs
+
+    @action(detail=True, methods=["post"])  # /groups/{id}/resolve/
+    def resolve(self, request, pk=None):
+        g = self.get_object()
+        g.status = Group.STATUS_RESOLVED
+        g.resolved_at = timezone.now()
+        g.save(update_fields=["status", "resolved_at"])
+        return Response(GroupSerializer(g).data)
+
+    @action(detail=True, methods=["post"])  # /groups/{id}/unresolve/
+    def unresolve(self, request, pk=None):
+        g = self.get_object()
+        g.status = Group.STATUS_UNRESOLVED
+        g.resolved_at = None
+        g.save(update_fields=["status", "resolved_at"])
+        return Response(GroupSerializer(g).data)
+
+    @action(detail=True, methods=["post"])  # /groups/{id}/ignore/
+    def ignore(self, request, pk=None):
+        g = self.get_object()
+        g.status = Group.STATUS_IGNORED
+        g.save(update_fields=["status"])
+        return Response(GroupSerializer(g).data)
+
+    @action(detail=True, methods=["post"])  # /groups/{id}/assign/
+    def assign(self, request, pk=None):
+        g = self.get_object()
+        assignee = request.data.get("assignee", "")
+        g.assignee = assignee
+        g.save(update_fields=["assignee"])
+        return Response(GroupSerializer(g).data)
+
+    @action(detail=True, methods=["post"])  # /groups/{id}/bookmark/
+    def bookmark(self, request, pk=None):
+        g = self.get_object()
+        g.is_bookmarked = True
+        g.save(update_fields=["is_bookmarked"])
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["post"], url_path="unbookmark")
+    def unbookmark(self, request, pk=None):
+        g = self.get_object()
+        g.is_bookmarked = False
+        g.save(update_fields=["is_bookmarked"])
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["get", "post"], url_path="comments")
+    def comments(self, request, pk=None):
+        g = self.get_object()
+        if request.method == "GET":
+            return Response(CommentSerializer(g.comments.all().order_by("-created_at"), many=True).data)
+        data = request.data or {}
+        data["group"] = g.id
+        ser = CommentSerializer(data=data)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data, status=201)
 
 
 class ReleaseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -513,3 +711,111 @@ class DeploymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets
         if project:
             qs = qs.filter(project__slug=project)
         return qs
+
+
+class EventSeriesView(APIView):
+    def get(self, request):
+        project_slug = request.query_params.get("project")
+        if not project_slug:
+            return Response({"detail": "project required"}, status=400)
+        rng = request.query_params.get("range", "1h")
+        interval = request.query_params.get("interval", "5m")
+        backend = request.query_params.get("backend", "ch")
+        from_param = request.query_params.get("from")
+        to_param = request.query_params.get("to")
+
+        def parse_range(s: str):
+            if s.endswith('h'):
+                return int(s[:-1]) * 60
+            if s.endswith('d'):
+                return int(s[:-1]) * 60 * 24
+            if s.endswith('m'):
+                return int(s[:-1])
+            return 60
+
+        minutes = parse_range(rng)
+        if backend == 'ch':
+            try:
+                if from_param and to_param:
+                    rows = query_events_series_by_level(project_slug, bucket=interval, from_iso=from_param, to_iso=to_param)
+                else:
+                    rows = query_events_series_by_level(project_slug, minutes=minutes, bucket=interval)
+                return Response(rows)
+            except Exception as e:
+                return Response({"detail": f"clickhouse error: {e}"}, status=500)
+        # PG fallback: aggregate by date_trunc
+        from django.db.models.functions import TruncMinute, TruncHour
+        from django.db.models import Count
+        trunc = TruncHour('received_at') if interval == '1h' else TruncMinute('received_at')
+        qs = Event.objects.filter(project__slug=project_slug)
+        if from_param:
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(from_param)
+            if dt:
+                qs = qs.filter(received_at__gte=dt)
+        if to_param:
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(to_param)
+            if dt:
+                qs = qs.filter(received_at__lte=dt)
+        if not from_param and not to_param:
+            qs = qs.filter(received_at__gte=timezone.now()-timezone.timedelta(minutes=minutes))
+        agg = qs.annotate(bucket=trunc).values('bucket', 'level').annotate(c=Count('id')).order_by('bucket')
+        out = {}
+        for row in agg:
+            key = row['bucket'].isoformat()
+            if key not in out:
+                out[key] = {"bucket": key, "error": 0, "warning": 0, "info": 0}
+            out[key][row['level']] = row['c']
+        return Response(list(out.values()))
+
+
+class TopGroupsView(APIView):
+    def get(self, request):
+        project_slug = request.query_params.get("project")
+        if not project_slug:
+            return Response({"detail": "project required"}, status=400)
+        rng = request.query_params.get("range", "24h")
+        limit = int(request.query_params.get("limit", "10"))
+        backend = request.query_params.get("backend", "ch")
+        from_param = request.query_params.get("from")
+        to_param = request.query_params.get("to")
+
+        def parse_range(s: str):
+            if s.endswith('h'):
+                return int(s[:-1]) * 60
+            if s.endswith('d'):
+                return int(s[:-1]) * 60 * 24
+            if s.endswith('m'):
+                return int(s[:-1])
+            return 60
+
+        minutes = parse_range(rng)
+        if backend == 'ch':
+            try:
+                if from_param and to_param:
+                    rows = query_top_groups(project_slug, limit=limit, from_iso=from_param, to_iso=to_param)
+                else:
+                    rows = query_top_groups(project_slug, minutes=minutes, limit=limit)
+                data = [{"fingerprint": r[0], "title": r[1], "count": int(r[2])} for r in rows]
+                return Response(data)
+            except Exception as e:
+                return Response({"detail": f"clickhouse error: {e}"}, status=500)
+        # PG fallback
+        from django.db.models import Count
+        qs = Event.objects.filter(project__slug=project_slug)
+        if from_param:
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(from_param)
+            if dt:
+                qs = qs.filter(received_at__gte=dt)
+        if to_param:
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(to_param)
+            if dt:
+                qs = qs.filter(received_at__lte=dt)
+        if not from_param and not to_param:
+            qs = qs.filter(received_at__gte=timezone.now()-timezone.timedelta(minutes=minutes))
+        agg = qs.values('group__fingerprint', 'group__title').annotate(c=Count('id')).order_by('-c')[:limit]
+        data = [{"fingerprint": r['group__fingerprint'], "title": r['group__title'], "count": r['c']} for r in agg]
+        return Response(data)

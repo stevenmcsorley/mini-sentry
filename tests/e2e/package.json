@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "End-to-end tests for Mini Sentry using Playwright and Cucumber BDD",
   "scripts": {
-    "test": "cucumber-js --require-module ts-node/register --require support/world.ts --require support/hooks.ts --require step-definitions/project-management.steps.ts --require step-definitions/event-ingestion.steps.ts --require step-definitions/api-integration.steps.ts --require step-definitions/overview-page.steps.ts --format progress --format json:reports/cucumber-report.json",
+    "test": "cucumber-js --require-module ts-node/register --require support/world.ts --require support/hooks.ts --require step-definitions/project-management.steps.ts --require step-definitions/event-ingestion.steps.ts --require step-definitions/api-integration.steps.ts --require step-definitions/overview-page.steps.ts --require step-definitions/alert-management.steps.ts --format progress --format json:reports/cucumber-report.json",
     "test:headed": "npm run test -- --headed",
     "test:debug": "npm run test -- --headed --debug",
     "test:report": "allure generate reports/allure-results --clean && allure open",

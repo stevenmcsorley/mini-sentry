@@ -34,7 +34,7 @@ Feature: Overview Page Comprehensive Testing
     When I locate the release management section
     Then I should see the release creation form
     And I should see the releases table with existing releases
-    When I create a new release with version "overview-test-1.0.0" and environment "test"
+    When I create a new overview release with version "overview-test-1.0.0" and environment "test"
     Then the new release should appear in the releases table
     And the release should have the correct version and environment
     And the releases count in quick metrics should increment
@@ -55,9 +55,9 @@ Feature: Overview Page Comprehensive Testing
     Then I should see the session testing controls
     And I should see the health data controls with range and interval selectors
     When I enter "test-overview-user" in the session user input
-    And I click the "Send ok session" button
+    And I click the overview "Send ok session" button
     Then the session should be sent successfully
-    When I click the "Send crashed session" button
+    When I click the overview "Send crashed session" button
     Then the crashed session should be sent successfully
     When I change the health range to "1h"
     And I click the refresh health button

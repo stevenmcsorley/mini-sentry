@@ -157,7 +157,7 @@ Then('I should see the releases table with existing releases', async function (t
   await expect(releasesTable).toBeVisible();
 });
 
-When('I create a new release with version {string} and environment {string}', async function (this: MiniSentryWorld, version: string, environment: string) {
+When('I create a new overview release with version {string} and environment {string}', async function (this: MiniSentryWorld, version: string, environment: string) {
   // Store the version for later verification
   this.testData.testReleaseVersion = version;
   this.testData.testReleaseEnvironment = environment;
@@ -278,7 +278,7 @@ When('I enter {string} in the session user input', async function (this: MiniSen
   this.testData.testSessionUser = userId;
 });
 
-When('I click the {string} button', async function (this: MiniSentryWorld, buttonText: string) {
+When('I click the overview {string} button', async function (this: MiniSentryWorld, buttonText: string) {
   if (buttonText === 'Send ok session') {
     const button = this.page.locator('[data-testid="send-ok-session"]');
     await button.click();
@@ -697,8 +697,24 @@ When('I switch to the {string} tab', async function (this: MiniSentryWorld, tabN
 });
 
 When('I switch back to the {string} tab', async function (this: MiniSentryWorld, tabName: string) {
-  // Same as switching to tab
-  await this.execute('When', `I switch to the "${tabName}" tab`);
+  let tabSelector: string;
+  switch (tabName.toLowerCase()) {
+    case 'logs':
+      tabSelector = 'button[title="Explore (Logs)"]';
+      break;
+    case 'overview':
+      tabSelector = 'button[title="Overview"]';
+      break;
+    case 'dashboard':
+      tabSelector = 'button[title="Dashboards"]';
+      break;
+    default:
+      throw new Error(`Unknown tab: ${tabName}`);
+  }
+  
+  const tab = this.page.locator(tabSelector);
+  await tab.click();
+  await this.page.waitForTimeout(1000);
 });
 
 Then('the release {string} should still be visible in the releases table', async function (this: MiniSentryWorld, version: string) {
@@ -884,7 +900,24 @@ When('I create a release and then navigate to the {string} tab', async function 
   await this.page.waitForTimeout(2000);
   
   // Navigate to the specified tab
-  await this.execute('When', `I switch to the "${tabName}" tab`);
+  let tabSelector: string;
+  switch (tabName.toLowerCase()) {
+    case 'logs':
+      tabSelector = 'button[title="Explore (Logs)"]';
+      break;
+    case 'overview':
+      tabSelector = 'button[title="Overview"]';
+      break;
+    case 'dashboard':
+      tabSelector = 'button[title="Dashboards"]';
+      break;
+    default:
+      throw new Error(`Unknown tab: ${tabName}`);
+  }
+  
+  const tab = this.page.locator(tabSelector);
+  await tab.click();
+  await this.page.waitForTimeout(1000);
 });
 
 Then('the release should be available for filtering', async function (this: MiniSentryWorld) {
@@ -922,7 +955,24 @@ When('I send session data and navigate to the {string} tab', async function (thi
   }
   
   // Navigate to specified tab
-  await this.execute('When', `I switch to the "${tabName}" tab`);
+  let tabSelector: string;
+  switch (tabName.toLowerCase()) {
+    case 'logs':
+      tabSelector = 'button[title="Explore (Logs)"]';
+      break;
+    case 'overview':
+      tabSelector = 'button[title="Overview"]';
+      break;
+    case 'dashboard':
+      tabSelector = 'button[title="Dashboards"]';
+      break;
+    default:
+      throw new Error(`Unknown tab: ${tabName}`);
+  }
+  
+  const tab = this.page.locator(tabSelector);
+  await tab.click();
+  await this.page.waitForTimeout(1000);
 });
 
 Then('the health data should be reflected in dashboard charts', async function (this: MiniSentryWorld) {

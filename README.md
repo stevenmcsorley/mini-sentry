@@ -176,7 +176,18 @@ flowchart LR
 - Create deployments and ingest sessions; view health summary and time series.
 - Create/edit alert rules, add alert targets, and snooze rules per group.
 - Server‑side search for Events and Groups (search box + filters).
-- Minimal Dashboard (time series + Top Groups), with range/interval controls.
+- Dashboard (time series + Top Groups), aligned with the Logs selection.
+
+### Logs View (ECharts)
+
+- Stacked bars by level (error/warning/info).
+- Drag on the chart to select a time range — the chart zooms and Logs + Dashboard filter to the selection.
+- Click a single bar to focus that bucket.
+- Wheel/pinch zoom inside (no visible slider); reset zoom via “See full list”.
+- Legend toggles hide levels in the table; selecting exactly one level applies the server filter.
+- Human‑readable timestamps and colored level badges in the table.
+- Time Range menu (Sentry‑style): quick options (Last hour/24 hours/7–30 days) + custom ranges (e.g., `2h`, `4d`, `3w`).
+- “See full list” resets time range to 24h, clears level filter, and resets zoom.
 
 ## API Docs
 

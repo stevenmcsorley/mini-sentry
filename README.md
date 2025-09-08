@@ -1,5 +1,7 @@
 # Mini Sentry-like Stack (Dockerized)
 
+![Mini Sentry UI](screenshot1.png)
+
 Sentry-inspired, end-to-end stack you can run locally in Docker:
 
 - Backend: Django (REST API) + Celery (worker/beat)

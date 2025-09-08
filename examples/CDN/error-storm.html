@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini Sentry – Error Storm Demo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 0; background: #0b0f14; color: #e6edf3; }
+    header { padding: 16px 20px; background: #111826; border-bottom: 1px solid #1f2937; }
+    h1 { font-size: 20px; margin: 0; }
+    main { padding: 20px; display: grid; gap: 16px; max-width: 1100px; margin: 0 auto; }
+    .card { background: #0f172a; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button { background: #2563eb; color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+    button.secondary { background: #374151; }
+    button.destructive { background: #ef4444; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    code, pre { background: #0b1220; color: #93c5fd; border: 1px solid #1f2937; padding: 2px 6px; border-radius: 6px; }
+    #log { max-height: 320px; overflow: auto; font-size: 12px; background: #0b1220; border: 1px solid #1f2937; padding: 12px; border-radius: 8px; }
+    .kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; }
+    input, select { background: #0b1220; border: 1px solid #1f2937; color: #e6edf3; padding: 8px 10px; border-radius: 8px; }
+    a { color: #93c5fd; }
+    .badge { background:#111827; border:1px solid #1f2937; color:#9ca3af; padding:2px 8px; border-radius:999px; font-size:12px }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Mini Sentry – Error Storm Demo <span class="badge">client test rig</span></h1>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Setup</h2>
+      <div class="kv">
+        <label>API Base URL</label>
+        <input id="baseUrl" placeholder="http://localhost:8000" />
+        <label>Token</label>
+        <input id="token" value="aieFJYLB9sKDJ51IX8djQJgl8cLezWBdZU0AkaaYQTU" />
+        <label>App</label>
+        <input id="appName" value="error-storm" />
+        <label>Release</label>
+        <input id="release" value="demo-1.0.0" />
+        <label>Environment</label>
+        <select id="env">
+          <option value="development">development</option>
+          <option value="staging">staging</option>
+          <option value="production">production</option>
+          <option value="demo" selected>demo</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="initBtn">Initialise Mini Sentry</button>
+        <span id="status" class="badge">not initialised</span>
+      </div>
+      <p style="margin-top:10px">Tip: You can also pass <code>?api=https://your-backend</code> in the URL. Defaults to <code>http://localhost:8000</code>.</p>
+    </section>
+
+    <section class="card">
+      <h2>Error Generators</h2>
+      <div class="row">
+        <button id="burstBtn">🔥 Fire 50 errors</button>
+        <button id="dripBtn" class="secondary">💧 Start slow-drip (1/sec)</button>
+        <button id="stopBtn" class="secondary">⏹️ Stop drip</button>
+        <button id="throwBtn" class="destructive">💥 Throw now (sync)</button>
+      </div>
+      <p id="counts" style="margin:8px 0 0"></p>
+    </section>
+
+    <section class="card">
+      <h2>Manual Signals</h2>
+      <div class="row">
+        <button id="msgBtn" class="secondary">📨 captureMessage()</button>
+        <button id="handledBtn" class="secondary">🧤 captureException(handled)</button>
+        <button id="okBtn" class="secondary">🙂 sendSession('ok')</button>
+        <button id="crashBtn" class="secondary">💀 sendSession('crashed')</button>
+        <button id="rejectBtn" class="secondary">🚫 Unhandled rejection</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Client Log</h2>
+      <div id="log"></div>
+    </section>
+  </main>
+
+  <!-- Mini Sentry CDN (IIFE/global) -->
+  <!-- Shim process for React/CJS environments referenced by some bundles -->
+  <script>window.process = window.process || { env: { NODE_ENV: 'production' } };</script>
+  <script src="https://cdn.jsdelivr.net/npm/mini-sentry-client/dist/index.global.js"></script>
+    <script src="/dist/error-storm.js"></script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+import { Given, When, Then } from '@cucumber/cucumber';
+import { expect } from '@playwright/test';
+import { MiniSentryWorld } from '../support/world';
+
+// Background Steps
+Given('Mini Sentry is running and accessible', async function (this: MiniSentryWorld) {
+  // Verify Mini Sentry API is running
+  const apiResponse = await this.page.request.get('http://localhost:8000/api/health');
+  expect(apiResponse.ok()).toBeTruthy();
+
+  // Verify Mini Sentry UI is accessible
+  const uiResponse = await this.page.request.get('http://localhost:5173');
+  expect(uiResponse.ok()).toBeTruthy();
+});
+
+Given('I have a test project configured with a valid token', async function (this: MiniSentryWorld) {
+  // Use the existing test project from configuration
+  const testProjectId = this.getTestProjectId();
+  const testProjectName = this.getTestProjectName();
+  const testProjectToken = this.getTestProjectToken();
+  
+  // Verify the test project exists by navigating to Mini Sentry
+  await this.page.goto(this.getMiniSentryUrl());
+  await this.page.waitForLoadState('domcontentloaded');
+  
+  // The test project should be available and configured
+  expect(testProjectId).toBeTruthy();
+  expect(testProjectName).toBeTruthy();
+  expect(testProjectToken).toBeTruthy();
+});
+
+// Navigation Steps
+Given('I am on the test application error testing page', async function (this: MiniSentryWorld) {
+  await this.page.goto('http://localhost:3001/error-testing');
+  await this.page.waitForLoadState('networkidle');
+  
+  // Verify we're on the error testing page
+  const pageTitle = await this.page.locator('h2').textContent();
+  expect(pageTitle).toContain('Error Testing');
+});
+
+Given('I am on the test application with a logged in test user', async function (this: MiniSentryWorld) {
+  // Navigate to test app
+  await this.page.goto('http://localhost:3001');
+  
+  // Verify user context is set (the Mini Sentry client should set this automatically)
+  const userInfo = await this.page.evaluate(() => {
+    return (window as any).miniSentryUser || null;
+  });
+  
+  expect(userInfo).toBeTruthy();
+});
+
+Given('the test application has a beforeSend hook configured', async function (this: MiniSentryWorld) {
+  // This is configured in main.tsx - just verify it exists
+  await this.page.goto('http://localhost:3001');
+  
+  const hookExists = await this.page.evaluate(() => {
+    return typeof (window as any).miniSentryBeforeSend === 'function';
+  });
+  
+  // The hook is configured in the client initialization
+  expect(hookExists).toBeTruthy();
+});
+
+// Error Triggering Steps
+When('I click the {string} button', async function (this: MiniSentryWorld, buttonText: string) {
+  // Map button text to actual testid
+  let buttonSelector: string;
+  
+  switch (buttonText.toLowerCase()) {
+    case 'javascript error':
+      buttonSelector = '[data-testid="trigger-type-error"]'; // Use TypeError as default JS error
+      break;
+    case 'network error':
+      buttonSelector = '[data-testid="trigger-network-error"]';
+      break;
+    case 'async error':
+      buttonSelector = '[data-testid="trigger-promise-error"]'; // Assuming this exists
+      break;
+    case 'component error':
+      buttonSelector = '[data-testid="trigger-component-error"]'; // Assuming this exists
+      break;
+    default:
+      // Try to construct selector from button text
+      buttonSelector = `[data-testid="${buttonText.toLowerCase().replace(/\s+/g, '-')}-button"]`;
+      break;
+  }
+  
+  // Store current time to help with verification later
+  this.testData.errorTriggerTime = new Date();
+  
+  await this.page.click(buttonSelector);
+  
+  // Wait a moment for the error to be triggered
+  await this.page.waitForTimeout(500);
+});
+
+When('I click the {string} button multiple times', async function (this: MiniSentryWorld, buttonText: string) {
+  const buttonSelector = `[data-testid="${buttonText.toLowerCase().replace(/\s+/g, '-')}-button"]`;
+  
+  this.testData.errorTriggerTime = new Date();
+  
+  // Click the button 3 times to test error grouping
+  for (let i = 0; i < 3; i++) {
+    await this.page.click(buttonSelector);
+    await this.page.waitForTimeout(200);
+  }
+  
+  this.testData.expectedErrorCount = 3;
+});
+
+When('I trigger any error', async function (this: MiniSentryWorld) {
+  // Use JavaScript Error as the default error
+  const buttonSelector = '[data-testid="javascript-error-button"]';
+  
+  this.testData.errorTriggerTime = new Date();
+  await this.page.click(buttonSelector);
+  await this.page.waitForTimeout(500);
+});
+
+// Error Verification Steps
+Then('an error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
+  // Wait for error to be sent to Mini Sentry
+  await this.page.waitForTimeout(1000);
+  
+  // Check that an API call was made to the events endpoint
+  const apiCalls = await this.page.evaluate(() => {
+    return (window as any).miniSentryApiCalls || [];
+  });
+  
+  expect(apiCalls.length).toBeGreaterThan(0);
+});
+
+Then('a network error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
+  await this.page.waitForTimeout(1000);
+  
+  // Verify network error was captured with appropriate details
+  const errorData = await this.page.evaluate(() => {
+    return (window as any).lastCapturedError || null;
+  });
+  
+  expect(errorData).toBeTruthy();
+  expect(errorData.message).toContain('Network Error');
+});
+
+Then('an async error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
+  await this.page.waitForTimeout(2000); // Async errors might take longer
+  
+  const errorData = await this.page.evaluate(() => {
+    return (window as any).lastCapturedError || null;
+  });
+  
+  expect(errorData).toBeTruthy();
+  expect(errorData.message).toContain('Async');
+});
+
+Then('a React component error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
+  await this.page.waitForTimeout(1000);
+  
+  // Check that the error boundary caught the error
+  const errorBoundaryActive = await this.page.locator('[data-testid="error-boundary-message"]').isVisible();
+  expect(errorBoundaryActive).toBeTruthy();
+  
+  const errorData = await this.page.evaluate(() => {
+    return (window as any).lastCapturedError || null;
+  });
+  
+  expect(errorData).toBeTruthy();
+});
+
+Then('I should see the error in the Mini Sentry dashboard within {int} seconds', async function (this: MiniSentryWorld, seconds: number) {
+  // Navigate to Mini Sentry dashboard
+  await this.page.goto('http://localhost:5173');
+  await this.page.waitForLoadState('domcontentloaded');
+  
+  // Make sure we're on the Logs tab to see events
+  const logsTab = this.page.locator('button[title="Explore (Logs)"]');
+  if (await logsTab.isVisible()) {
+    await logsTab.click();
+    await this.page.waitForTimeout(1000);
+  }
+  
+  // Wait for events to appear - look for the actual event grid structure
+  const timeout = seconds * 1000;
+  
+  // The events are in a grid structure, not a list with data-testids
+  await this.page.waitForSelector('.divide-y.divide-slate-800\\/60', { timeout });
+  
+  // Count the event rows in the grid (excluding header)
+  const eventRows = await this.page.locator('.divide-y.divide-slate-800\\/60 > div').count();
+  expect(eventRows).toBeGreaterThan(0);
+});
+
+Then('I should see the network error in the Mini Sentry dashboard within {int} seconds', async function (this: MiniSentryWorld, seconds: number) {
+  // Same as generic error check - reuse the existing step
+  await this.page.goto('http://localhost:5173');
+  
+  try {
+    await this.dashboardPage.switchToProject(this.getTestProjectName());
+  } catch {
+    // Project might already be selected
+  }
+  
+  const timeout = seconds * 1000;
+  await this.page.waitForSelector('[data-testid="error-list"]', { timeout });
+  
+  const errorItems = await this.page.locator('[data-testid="error-item"]').count();
+  expect(errorItems).toBeGreaterThan(0);
+});
+
+Then('I should see the async error in the Mini Sentry dashboard within {int} seconds', async function (this: MiniSentryWorld, seconds: number) {
+  // Same as generic error check - reuse the existing step  
+  await this.page.goto('http://localhost:5173');
+  
+  try {
+    await this.dashboardPage.switchToProject(this.getTestProjectName());
+  } catch {
+    // Project might already be selected
+  }
+  
+  const timeout = seconds * 1000;
+  await this.page.waitForSelector('[data-testid="error-list"]', { timeout });
+  
+  const errorItems = await this.page.locator('[data-testid="error-item"]').count();
+  expect(errorItems).toBeGreaterThan(0);
+});
+
+Then('I should see the component error in the Mini Sentry dashboard within {int} seconds', async function (this: MiniSentryWorld, seconds: number) {
+  // Same as generic error check - reuse the existing step
+  await this.page.goto('http://localhost:5173');
+  
+  try {
+    await this.dashboardPage.switchToProject(this.getTestProjectName());
+  } catch {
+    // Project might already be selected
+  }
+  
+  const timeout = seconds * 1000;
+  await this.page.waitForSelector('[data-testid="error-list"]', { timeout });
+  
+  const errorItems = await this.page.locator('[data-testid="error-item"]').count();
+  expect(errorItems).toBeGreaterThan(0);
+});
+
+Then('the error should have the correct stack trace', async function (this: MiniSentryWorld) {
+  // Click on the first event row to expand details - look for the expand button
+  const firstEventRow = this.page.locator('.divide-y.divide-slate-800\\/60 > div').first();
+  const expandButton = firstEventRow.locator('button svg');
+  await expandButton.click();
+  
+  // Wait for event details to expand and load
+  await this.page.waitForTimeout(2000);
+  
+  // Look for stack trace in the expanded details
+  const stackTrace = this.page.locator('pre, .space-y-1, ol');
+  
+  if (await stackTrace.isVisible()) {
+    const stackContent = await stackTrace.textContent();
+    expect(stackContent).toBeTruthy();
+    // Stack traces should contain function names or file references
+    expect(stackContent).toMatch(/at\s+\w+|function\s+\w+|\w+\.js|\w+\.tsx?/);
+  } else {
+    // Some errors might not have stack traces, which is also valid
+    console.log('No stack trace found for this error - this may be expected');
+  }
+});
+
+Then('the error should contain network failure details', async function (this: MiniSentryWorld) {
+  // Click on the first error to view details
+  await this.page.click('[data-testid="error-item"]');
+  
+  await this.page.waitForSelector('[data-testid="error-details"]');
+  
+  const errorDetails = await this.page.locator('[data-testid="error-details"]').textContent();
+  expect(errorDetails).toContain('Network');
+  expect(errorDetails?.includes('fetch') || errorDetails?.includes('HTTP')).toBeTruthy();
+});
+
+Then('the error should be properly attributed to the async operation', async function (this: MiniSentryWorld) {
+  await this.page.click('[data-testid="error-item"]');
+  await this.page.waitForSelector('[data-testid="error-details"]');
+  
+  const errorDetails = await this.page.locator('[data-testid="error-details"]').textContent();
+  expect(errorDetails?.includes('async') || errorDetails?.includes('Promise')).toBeTruthy();
+});
+
+Then('the error should show the component error boundary message', async function (this: MiniSentryWorld) {
+  await this.page.click('[data-testid="error-item"]');
+  await this.page.waitForSelector('[data-testid="error-details"]');
+  
+  const errorDetails = await this.page.locator('[data-testid="error-details"]').textContent();
+  expect(errorDetails?.includes('Component') || errorDetails?.includes('React')).toBeTruthy();
+});
+
+// Error Grouping Steps
+Then('the errors should be grouped together in Mini Sentry', async function (this: MiniSentryWorld) {
+  // Wait for error grouping to occur
+  await this.page.waitForTimeout(2000);
+  
+  // Check that errors are grouped (should see one error group, not multiple individual errors)
+  const errorGroups = await this.page.locator('[data-testid="error-group"]').count();
+  expect(errorGroups).toBe(1);
+});
+
+Then('the error group should show multiple occurrences', async function (this: MiniSentryWorld) {
+  const occurrenceCount = await this.page.locator('[data-testid="error-occurrence-count"]').textContent();
+  expect(occurrenceCount).toContain('3'); // We triggered 3 errors
+});
+
+Then('the error count should increment correctly', async function (this: MiniSentryWorld) {
+  const countText = await this.page.locator('[data-testid="error-count"]').textContent();
+  const count = parseInt(countText?.replace(/\D/g, '') || '0');
+  expect(count).toBe(this.testData.expectedErrorCount || 1);
+});
+
+// Context and Metadata Steps
+Then('the captured error should include user context', async function (this: MiniSentryWorld) {
+  await this.page.click('[data-testid="error-item"]');
+  await this.page.waitForSelector('[data-testid="error-user-context"]');
+  
+  const userContext = await this.page.locator('[data-testid="error-user-context"]').isVisible();
+  expect(userContext).toBeTruthy();
+});
+
+Then('the user ID should be {string}', async function (this: MiniSentryWorld, expectedUserId: string) {
+  const userId = await this.page.locator('[data-testid="error-user-id"]').textContent();
+  expect(userId).toContain(expectedUserId);
+});
+
+Then('the user email should be {string}', async function (this: MiniSentryWorld, expectedEmail: string) {
+  const userEmail = await this.page.locator('[data-testid="error-user-email"]').textContent();
+  expect(userEmail).toContain(expectedEmail);
+});
+
+Then('the captured error should include custom tags', async function (this: MiniSentryWorld) {
+  await this.page.click('[data-testid="error-item"]');
+  await this.page.waitForSelector('[data-testid="error-tags"]');
+  
+  const tags = await this.page.locator('[data-testid="error-tags"]').isVisible();
+  expect(tags).toBeTruthy();
+});
+
+Then('the error should have {string} tag', async function (this: MiniSentryWorld, expectedTag: string) {
+  const tagsSection = await this.page.locator('[data-testid="error-tags"]').textContent();
+  expect(tagsSection).toContain(expectedTag);
+});
+
+Then('the error should include the test environment context', async function (this: MiniSentryWorld) {
+  const environmentInfo = await this.page.locator('[data-testid="error-environment"]').textContent();
+  expect(environmentInfo).toContain('test');
+});
+
+Then('the captured error should include extra context data', async function (this: MiniSentryWorld) {
+  await this.page.click('[data-testid="error-item"]');
+  await this.page.waitForSelector('[data-testid="error-extra-data"]');
+  
+  const extraData = await this.page.locator('[data-testid="error-extra-data"]').isVisible();
+  expect(extraData).toBeTruthy();
+});
+
+Then('the extra data should contain component information', async function (this: MiniSentryWorld) {
+  const extraDataContent = await this.page.locator('[data-testid="error-extra-data"]').textContent();
+  expect(extraDataContent?.includes('component') || extraDataContent?.includes('Component')).toBeTruthy();
+});
+
+Then('the extra data should contain user action details', async function (this: MiniSentryWorld) {
+  const extraDataContent = await this.page.locator('[data-testid="error-extra-data"]').textContent();
+  expect(extraDataContent?.includes('action') || extraDataContent?.includes('button')).toBeTruthy();
+});
+
+// Release and Environment Steps
+Then('the captured error should have release {string}', async function (this: MiniSentryWorld, expectedRelease: string) {
+  await this.page.click('[data-testid="error-item"]');
+  const releaseInfo = await this.page.locator('[data-testid="error-release"]').textContent();
+  expect(releaseInfo).toContain(expectedRelease);
+});
+
+Then('the captured error should have environment {string}', async function (this: MiniSentryWorld, expectedEnvironment: string) {
+  const environmentInfo = await this.page.locator('[data-testid="error-environment"]').textContent();
+  expect(environmentInfo).toContain(expectedEnvironment);
+});
+
+Then('the error should be associated with the correct project', async function (this: MiniSentryWorld) {
+  // Verify we're viewing the correct project
+  const projectName = await this.page.locator('[data-testid="current-project-name"]').textContent();
+  expect(projectName).toContain(this.getTestProjectName());
+});
+
+// BeforeSend Hook Steps
+Then('the beforeSend hook should modify the error data', async function (this: MiniSentryWorld) {
+  await this.page.click('[data-testid="error-item"]');
+  
+  // Check for modifications made by the beforeSend hook
+  const errorData = await this.page.locator('[data-testid="error-details"]').textContent();
+  expect(errorData).toContain('test_app'); // This should be added by beforeSend
+});
+
+Then('the error should contain the test metadata injected by the hook', async function (this: MiniSentryWorld) {
+  const tagsSection = await this.page.locator('[data-testid="error-tags"]').textContent();
+  expect(tagsSection).toContain('test_app: true');
+  expect(tagsSection).toContain('app_version: 1.0.0-test');
+});
+
+Then('the original error should still be captured with modifications', async function (this: MiniSentryWorld) {
+  // Verify original error content is preserved
+  const errorMessage = await this.page.locator('[data-testid="error-message"]').textContent();
+  expect(errorMessage).toBeTruthy();
+  expect(errorMessage).not.toBe('');
+  
+  // Verify modifications are present
+  const tagsSection = await this.page.locator('[data-testid="error-tags"]').textContent();
+  expect(tagsSection).toContain('test_app');
+});

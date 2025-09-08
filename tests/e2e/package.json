@@ -1,0 +1,30 @@
+{
+  "name": "mini-sentry-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Mini Sentry using Playwright and Cucumber BDD",
+  "scripts": {
+    "test": "cucumber-js --require-module ts-node/register --require support/world.ts --require support/hooks.ts --require step-definitions/project-management.steps.ts --require step-definitions/event-ingestion.steps.ts --format progress --format json:reports/cucumber-report.json",
+    "test:headed": "npm run test -- --headed",
+    "test:debug": "npm run test -- --headed --debug",
+    "test:report": "allure generate reports/allure-results --clean && allure open",
+    "test:specific": "npm run test -- --name",
+    "playwright:install": "playwright install",
+    "setup": "npm install && npm run playwright:install"
+  },
+  "keywords": ["e2e", "testing", "playwright", "cucumber", "bdd", "mini-sentry"],
+  "author": "Mini Sentry Team",
+  "license": "MIT",
+  "dependencies": {
+    "@cucumber/cucumber": "^10.0.1",
+    "@playwright/test": "^1.40.0",
+    "playwright": "^1.40.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.0",
+    "allure-commandline": "^2.24.1",
+    "allure-playwright": "^2.9.0"
+  }
+}

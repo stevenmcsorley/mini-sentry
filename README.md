@@ -2,6 +2,26 @@
 
 ![Mini Sentry UI](screenshot1.png)
 
+## Dashboard Templates
+
+Mini Sentry includes multiple dashboard layouts inspired by Sentry's different monitoring focuses:
+
+### Current Template
+![Current Dashboard](screenshot-dash-current.png)
+*Comprehensive overview with key metrics cards, interactive ECharts, release health tracking, recent deployments, and top issues.*
+
+### Frontend Template  
+![Frontend Dashboard](screenshot-dashboard-frontend.png)
+*Performance-focused dashboard featuring Core Web Vitals (LCP, FCP, CLS, FID), page load metrics, and frontend-specific issue tracking.*
+
+### General Template
+![General Dashboard](screenshot-dashboard-general.png)
+*Error tracking focused layout with error counts, issue metrics, user experience scores (Apdex), and handled vs unhandled error breakdowns.*
+
+### Backend Template
+![Backend Dashboard](screenshot-dashboard-backend.png)
+*API performance monitoring with response times, database query performance, HTTP transaction analysis, and backend error patterns.*
+
 Sentry-inspired, end-to-end stack you can run locally in Docker:
 
 - Backend: Django (REST API) + Celery (worker/beat)

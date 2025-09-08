@@ -1,4 +1,4 @@
-@mini-sentry/client
+mini-sentry-client
 
 Lightweight browser client for the Mini Sentry backend.
 
@@ -20,15 +20,15 @@ npm run build
 Install from npm (JS or TS)
 
 ```bash
-npm i @mini-sentry/client
+npm i mini-sentry-client
 # or
-yarn add @mini-sentry/client
+yarn add mini-sentry-client
 ```
 
 Usage (ESM)
 
 ```ts
-import { initMiniSentry, MiniSentryErrorBoundary } from '@mini-sentry/client'
+import { initMiniSentry, MiniSentryErrorBoundary } from 'mini-sentry-client'
 
 const ms = initMiniSentry({
   token: import.meta.env.VITE_MS_TOKEN,
@@ -59,7 +59,7 @@ JS apps (no TypeScript)
 The package ships compiled JS (ESM/CJS/IIFE) with optional type definitions. You can use it from plain JS apps:
 
 ```js
-import { initMiniSentry, MiniSentryErrorBoundary } from '@mini-sentry/client'
+import { initMiniSentry, MiniSentryErrorBoundary } from 'mini-sentry-client'
 const ms = initMiniSentry({ token: 'PASTE_TOKEN', baseUrl: 'http://localhost:8000' })
 // Optional: ErrorBoundary for React render errors
 // createRoot(el).render(<MiniSentryErrorBoundary client={ms}><App /></MiniSentryErrorBoundary>)
@@ -82,9 +82,9 @@ CDN (unpkg/jsDelivr)
 
 ```html
 <!-- Latest version -->
-<script src="https://unpkg.com/@mini-sentry/client/dist/index.global.js"></script>
+<script src="https://unpkg.com/mini-sentry-client/dist/index.global.js"></script>
 <!-- or -->
-<script src="https://cdn.jsdelivr.net/npm/@mini-sentry/client/dist/index.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mini-sentry-client/dist/index.global.js"></script>
 <script>
   const ms = window.MiniSentry.init({ token: '...', baseUrl: 'http://localhost:8000' })
   ms.captureMessage('hello')

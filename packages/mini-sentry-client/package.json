@@ -1,6 +1,6 @@
 {
-  "name": "@mini-sentry/client",
-  "version": "0.1.1",
+  "name": "mini-sentry-client",
+  "version": "1.0.0",
   "description": "Lightweight client to send events and sessions to Mini Sentry backend",
   "license": "MIT",
   "type": "module",
@@ -25,13 +25,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/<your-user-or-org>/mini-sentry.git",
+    "url": "git+https://github.com/mini-sentry/mini-sentry.git",
     "directory": "packages/mini-sentry-client"
   },
   "bugs": {
-    "url": "https://github.com/<your-user-or-org>/mini-sentry/issues"
+    "url": "https://github.com/mini-sentry/mini-sentry/issues"
   },
-  "homepage": "https://github.com/<your-user-or-org>/mini-sentry#readme",
+  "homepage": "https://github.com/mini-sentry/mini-sentry#readme",
   "files": ["dist"],
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs,iife --global-name MiniSentry --dts",

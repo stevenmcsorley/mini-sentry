@@ -4,8 +4,8 @@ Feature: API Integration Testing
   So that I can fully manage my error monitoring
 
   Background:
-    Given Mini Sentry API is running and accessible
-    And I am using the configured test project
+    Given Mini Sentry is running and accessible
+    And I have a test project configured with a valid token
     And I am on the Mini Sentry dashboard
 
   Scenario: Test Core Data Retrieval APIs

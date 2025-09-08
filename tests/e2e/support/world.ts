@@ -43,6 +43,50 @@ export class MiniSentryWorld extends World<MiniSentryWorldParameters> {
     expectedErrorCount?: number;
     lastErrorMessage?: string;
     currentPage?: string;
+    projectId?: string;
+    projectName?: string;
+    projectToken?: string;
+    releaseVersion?: string;
+    releaseEnvironment?: string;
+    artifactUploaded?: boolean;
+    lastSessionType?: string;
+    alertRuleName?: string;
+    alertThreshold?: number;
+    alertEmailTarget?: string;
+    assignedUser?: string;
+    groupComment?: string;
+    hasRelease?: boolean;
+    deploymentName?: string;
+    deploymentUrl?: string;
+    chartVisible?: boolean;
+    chartZoomed?: boolean;
+    hasSourceMaps?: boolean;
+    testMessage?: string;
+    expectsPagination?: number;
+    hasMultipleProjects?: boolean;
+    switchedProject?: boolean;
+    expectedErrorCode?: number;
+    // Overview page specific
+    initialCounts?: {
+      releases: number;
+      deployments: number;
+      rules: number;
+      groups: number;
+    };
+    testReleaseVersion?: string;
+    testReleaseEnvironment?: string;
+    testDeploymentName?: string;
+    testDeploymentUrl?: string;
+    testSessionUser?: string;
+    testAlertName?: string;
+    testAlertThreshold?: number;
+    hasGroups?: boolean;
+    persistenceTestVersion?: string;
+    expectingError?: boolean;
+    integrationTestVersion?: string;
+    hasAlertRules?: boolean;
+    expectingUpdates?: boolean;
+    alertsTriggered?: boolean;
   } = {};
 
   constructor(options: IWorldOptions<MiniSentryWorldParameters>) {

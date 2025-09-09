@@ -28,56 +28,183 @@ src/
 └── constants/           # Application constants
 ```
 
-## 🧩 Component Design Patterns
+## 🧩 React + TypeScript Component Style
 
-### 1. **Modern Functional Components**
+### 1. **Component Declaration**
+Use named exports with arrow functions. **Do not use React.FC or default exports.**
+
 ```typescript
-// ✅ Good - Modern const syntax
-const CoolComponent: React.FC<CoolComponentProps> = ({ prop1, prop2 }) => {
-  return <div>Content</div>
-}
-
-// ❌ Avoid - Old function syntax
-function CoolComponent(props) {
-  return <div>Content</div>
-}
-```
-
-### 2. **Component Props Interface**
-```typescript
-// ✅ Good - Clear interface with proper typing
-interface CoolComponentProps {
-  title: string
-  onAction: (id: number) => void
-  items?: Item[]
-  testId?: string
-}
-
-const CoolComponent: React.FC<CoolComponentProps> = ({ 
-  title, 
-  onAction, 
-  items = [], 
-  testId = 'cool-component' 
-}) => {
+// ✅ Professional - Named export with arrow function
+export const Button = ({ label, onClick, disabled = false }: ButtonProps) => {
   return (
-    <div data-testid={testId}>
-      <h1>{title}</h1>
-    </div>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-lg px-4 py-2 font-medium"
+    >
+      {label}
+    </button>
   )
 }
+
+// ❌ Avoid - React.FC and default exports
+const Button: React.FC<ButtonProps> = ({ label }) => { ... }
+export default Button
 ```
 
-### 3. **State Management - No Prop Drilling**
+### 2. **Props Types: Separate Files for Shared Components**
+Put props/interfaces in `Component.types.ts`. Use **type-only imports**.
+
 ```typescript
-// ✅ Good - Use Context or custom hooks for shared state
-const useProjectContext = () => {
-  const context = useContext(ProjectContext)
-  if (!context) throw new Error('useProjectContext must be used within ProjectProvider')
-  return context
+// src/components/Button/Button.types.ts
+import type { ReactNode } from "react"
+
+export type ButtonVariant = "primary" | "secondary" | "ghost"
+
+export interface ButtonProps {
+  label: string
+  variant?: ButtonVariant
+  disabled?: boolean
+  onClick?: () => void
+  /** Pass custom content instead of label (optional) */
+  children?: ReactNode
+}
+```
+
+```typescript
+// src/components/Button/Button.tsx
+import type { ButtonProps } from "./Button.types"
+
+export const Button = ({ label, variant = "primary", disabled = false }: ButtonProps) => {
+  // Component implementation
+}
+```
+
+### 3. **Defaults & Destructuring**
+Provide defaults via destructuring in parameter list (**not defaultProps**).
+
+```typescript
+// ✅ Good - Parameter defaults
+export const Button = ({
+  label,
+  variant = "primary",
+  disabled = false,
+  onClick,
+  children,
+}: ButtonProps) => { /* ... */ }
+
+// ❌ Avoid - defaultProps (deprecated)
+Button.defaultProps = { variant: "primary", disabled: false }
+```
+
+### 4. **Children & Composition**
+Only add `children` if the component is meant to render arbitrary content. Prefer composition over boolean props.
+
+```typescript
+// ✅ Good - Composition pattern
+export const Card = ({ title, children }: CardProps) => (
+  <section className="rounded-xl border p-4 shadow-sm">
+    <h2 className="text-lg font-semibold">{title}</h2>
+    <div>{children}</div>
+  </section>
+)
+
+// Card.types.ts
+export interface CardProps {
+  title: string
+  children: ReactNode
+}
+```
+
+### 5. **Event Handlers & DOM Types**
+Use specific React event types. **Never use `any`**.
+
+```typescript
+// ✅ Professional - Specific event types
+export type InputChange = React.ChangeEvent<HTMLInputElement>
+export type ButtonClick = React.MouseEvent<HTMLButtonElement>
+
+const handleChange = (e: InputChange) => { /* ... */ }
+const handleClick = (e: ButtonClick) => { /* ... */ }
+
+// ❌ Avoid - Generic or any types
+const handleChange = (e: any) => { /* ... */ }
+```
+
+### 6. **className Merging**
+Always accept `className?: string` on presentational components and merge with defaults.
+
+```typescript
+// ✅ Professional - Proper className merging
+export const Box = ({ className, children }: BoxProps) => (
+  <div className={["rounded-md p-2", className].filter(Boolean).join(" ")}>
+    {children}
+  </div>
+)
+
+// Box.types.ts
+export interface BoxProps {
+  className?: string
+  children?: ReactNode
+}
+```
+
+### 7. **Generics**
+For generic components, annotate the arrow function with `<T,>` and keep props generic.
+
+```typescript
+// ✅ Professional - Generic components
+export const List = <T,>({ items, renderItem, getKey }: ListProps<T>) => {
+  return (
+    <ul>
+      {items.map((item, i) => (
+        <li key={getKey ? getKey(item, i) : i}>{renderItem(item)}</li>
+      ))}
+    </ul>
+  )
 }
 
-// ✅ Good - Local state for component-specific data
-const [isLoading, setIsLoading] = useState(false)
+// List.types.ts
+export interface ListProps<T> {
+  items: T[]
+  renderItem: (item: T, index: number) => ReactNode
+  getKey?: (item: T, index: number) => string | number
+}
+```
+
+### 8. **forwardRef & memo**
+For ref exposure, use `forwardRef` with imported prop types; set `displayName`. Memoize only when profiling shows benefit.
+
+```typescript
+// ✅ Professional - forwardRef with displayName
+const InputBase = forwardRef<HTMLInputElement, InputProps>(
+  ({ className, ...props }, ref) => (
+    <input ref={ref} className={["border p-2", className].join(" ")} {...props} />
+  )
+)
+InputBase.displayName = "Input"
+
+export const Input = memo(InputBase)
+```
+
+### 9. **File Layout**
+One folder per component for shared/library components.
+
+```
+src/components/
+  Button/
+    Button.tsx
+    Button.types.ts
+    Button.test.tsx
+    Button.stories.tsx
+    index.ts
+```
+
+```typescript
+// src/components/Button/index.ts
+export * from "./Button"
+export type { ButtonProps, ButtonVariant } from "./Button.types"
 ```
 
 ## 🔄 Services Layer Pattern
@@ -307,18 +434,86 @@ const useProjects = () => {
 }
 ```
 
-## 📋 Code Review Checklist
+## ⚙️ Professional Configuration
 
-- [ ] Components use modern const syntax
-- [ ] Proper TypeScript interfaces defined
-- [ ] Test-ids added for interactive elements
-- [ ] No prop drilling (use Context/hooks instead)
-- [ ] API calls abstracted to services layer
-- [ ] Components are focused and single-responsibility
-- [ ] Proper error handling implemented
-- [ ] Performance optimizations (memoization) where needed
-- [ ] Consistent naming conventions followed
-- [ ] Accessibility considerations included
+### ESLint Rules
+```json
+{
+  "rules": {
+    "react/function-component-definition": [
+      "error", 
+      { "namedComponents": "arrow-function" }
+    ],
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports" }
+    ],
+    "react/jsx-props-no-spreading": "off",
+    "import/prefer-default-export": "off"
+  }
+}
+```
+
+### TypeScript Config
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
+
+### Component Quality Levels
+
+#### **Shared/Library Components** (strict)
+- ✅ Split types to `*.types.ts`
+- ✅ Export via `index.ts`
+- ✅ `forwardRef` when exposing refs
+- ✅ Accessibility attributes
+- ✅ Comprehensive test coverage
+- ✅ Storybook stories
+
+#### **Feature Components** (pragmatic)
+- ✅ Arrow function components
+- ✅ No `React.FC`
+- ✅ Type-only imports
+- ✅ Parameter defaults
+- ⚠️ Co-located types OK for small components
+
+## 📋 Professional Code Review Checklist
+
+### **Component Structure**
+- [ ] Named export with arrow function (`export const ComponentName = ...`)
+- [ ] No `React.FC` usage
+- [ ] Props destructured with parameter defaults
+- [ ] Type-only imports (`import type { ... }`)
+
+### **TypeScript Quality**
+- [ ] Specific event types (never `any`)
+- [ ] Proper generic component syntax (`<T,>`)
+- [ ] `className?: string` on presentational components
+- [ ] Explicit `children` only when needed
+
+### **Accessibility & UX**
+- [ ] ARIA attributes where needed
+- [ ] Semantic HTML elements
+- [ ] Focus states and keyboard navigation
+- [ ] Loading states for async operations
+
+### **Architecture**
+- [ ] API calls in services layer
+- [ ] No prop drilling (use hooks/context)
+- [ ] Single responsibility principle
+- [ ] Proper error handling and user feedback
+
+### **Testing & E2E**
+- [ ] Test-ids on interactive elements
+- [ ] Hierarchical naming: `{component}-{element}-{id}`
+- [ ] Unit testable (mockable dependencies)
 
 ## 🚀 Migration Strategy
 

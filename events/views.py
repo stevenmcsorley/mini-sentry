@@ -311,10 +311,12 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 "count": F("count") + 1,
             }
             
-            # If the group was resolved, mark it as unresolved (regression)
+            # Handle status transitions for new events (Sentry-style logic)
             if group.status == Group.STATUS_RESOLVED:
+                # Resolved issues reopen on new events (regression)
                 updates["status"] = Group.STATUS_UNRESOLVED
                 updates["resolved_at"] = None
+            # Note: Ignored issues stay ignored (they're meant to be muted)
                 
             Group.objects.filter(id=group.id).update(**updates)
             group.refresh_from_db(fields=["count", "last_seen", "level", "status", "resolved_at"])

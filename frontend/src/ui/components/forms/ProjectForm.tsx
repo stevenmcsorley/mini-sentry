@@ -1,20 +1,23 @@
-import React, { useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import type { FormEvent, ChangeEvent, KeyboardEvent } from 'react'
 
 interface ProjectFormProps {
   onCreate: (name: string) => Promise<void> | void
   isLoading?: boolean
+  className?: string
   testId?: string
 }
 
-export const ProjectForm: React.FC<ProjectFormProps> = ({ 
+export const ProjectForm = ({ 
   onCreate, 
   isLoading = false,
+  className,
   testId = 'project-form' 
-}) => {
+}: ProjectFormProps) => {
   const [name, setName] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e?: FormEvent) => {
     if (e) e.preventDefault()
     
     if (!name.trim() || isLoading || isSubmitting) return
@@ -31,7 +34,11 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
     }
   }, [name, onCreate, isLoading, isSubmitting])
 
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+  const handleChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value)
+  }, [])
+
+  const handleKeyPress = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleSubmit()
     }
@@ -42,13 +49,13 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
   return (
     <form 
       onSubmit={handleSubmit}
-      className="flex gap-2 mb-3"
+      className={["flex gap-2 mb-3", className].filter(Boolean).join(" ")}
       data-testid={testId}
     >
       <input
         type="text"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={handleChange}
         onKeyPress={handleKeyPress}
         placeholder="Enter project name"
         className="flex-1 px-3 py-2 border border-slate-700 bg-slate-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"

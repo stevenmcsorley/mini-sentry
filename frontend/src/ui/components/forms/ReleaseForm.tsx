@@ -1,21 +1,24 @@
-import React, { useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import type { FormEvent, ChangeEvent } from 'react'
 
 interface ReleaseFormProps {
   onCreate: (version: string, environment: string) => Promise<void> | void
   isLoading?: boolean
+  className?: string
   testId?: string
 }
 
-export const ReleaseForm: React.FC<ReleaseFormProps> = ({ 
+export const ReleaseForm = ({ 
   onCreate, 
   isLoading = false,
+  className,
   testId = 'release-form' 
-}) => {
+}: ReleaseFormProps) => {
   const [version, setVersion] = useState('')
   const [environment, setEnvironment] = useState('production')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e?: FormEvent) => {
     if (e) e.preventDefault()
     
     if (!version.trim() || !environment.trim() || isLoading || isSubmitting) return
@@ -32,18 +35,26 @@ export const ReleaseForm: React.FC<ReleaseFormProps> = ({
     }
   }, [version, environment, onCreate, isLoading, isSubmitting])
 
+  const handleVersionChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setVersion(e.target.value)
+  }, [])
+
+  const handleEnvironmentChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
+    setEnvironment(e.target.value)
+  }, [])
+
   const disabled = !version.trim() || !environment.trim() || isLoading || isSubmitting
 
   return (
     <form 
       onSubmit={handleSubmit}
-      className="flex gap-2 my-2"
+      className={["flex gap-2 my-2", className].filter(Boolean).join(" ")}
       data-testid={testId}
     >
       <input
         type="text"
         value={version}
-        onChange={(e) => setVersion(e.target.value)}
+        onChange={handleVersionChange}
         placeholder="e.g., 1.2.3"
         className="px-3 py-2 border border-slate-700 bg-slate-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={isLoading || isSubmitting}
@@ -52,7 +63,7 @@ export const ReleaseForm: React.FC<ReleaseFormProps> = ({
       />
       <select
         value={environment}
-        onChange={(e) => setEnvironment(e.target.value)}
+        onChange={handleEnvironmentChange}
         className="px-3 py-2 border border-slate-700 bg-slate-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={isLoading || isSubmitting}
         data-testid="release-environment-select"

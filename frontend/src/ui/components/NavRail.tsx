@@ -1,19 +1,22 @@
-import React, { useCallback } from 'react'
+import { useCallback } from 'react'
+import type { ReactNode } from 'react'
 
 type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects'
 
 interface NavRailProps {
   activeTab: NavigationTab
   onChange: (tab: NavigationTab) => void
+  className?: string
   testId?: string
 }
 
-export const NavRail: React.FC<NavRailProps> = ({ 
+export const NavRail = ({ 
   activeTab, 
   onChange,
+  className,
   testId = 'nav-rail' 
-}) => {
-  const Icon = ({ children }: { children: React.ReactNode }) => (
+}: NavRailProps) => {
+  const Icon = ({ children }: { children: ReactNode }) => (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">{children}</svg>
   )
   
@@ -53,13 +56,13 @@ export const NavRail: React.FC<NavRailProps> = ({
     </Icon>
   )
   
-  const NavItem: React.FC<{
+  const NavItem = useCallback(({ label, isActive, onClick, icon, testId }: {
     label: string
     isActive?: boolean
     onClick?: () => void
-    icon: React.ReactNode
+    icon: ReactNode
     testId?: string
-  }> = useCallback(({ label, isActive, onClick, icon, testId }) => (
+  }) => (
     <button 
       title={label} 
       onClick={onClick} 
@@ -77,7 +80,10 @@ export const NavRail: React.FC<NavRailProps> = ({
   
   return (
     <nav 
-      className="sticky top-4 flex h-[calc(100vh-2rem)] w-14 flex-col items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-900/50 p-2 backdrop-blur-sm" 
+      className={[
+        "sticky top-4 flex h-[calc(100vh-2rem)] w-14 flex-col items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-900/50 p-2 backdrop-blur-sm",
+        className
+      ].filter(Boolean).join(" ")} 
       data-testid={testId}
     >
       <div 

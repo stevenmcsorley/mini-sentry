@@ -55,11 +55,11 @@ const getLevelStyles = (level: string) => {
   }
 }
 
-export const LevelBadge: React.FC<LevelBadgeProps> = ({ 
+export const LevelBadge = ({ 
   level, 
   variant = 'default',
   testId = 'level-badge' 
-}) => {
+}: LevelBadgeProps) => {
   const styles = getLevelStyles(level)
   
   if (variant === 'compact') {

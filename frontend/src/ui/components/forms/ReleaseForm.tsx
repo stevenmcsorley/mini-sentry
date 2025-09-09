@@ -1,35 +1,79 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 
 interface ReleaseFormProps {
-  onCreate: (version: string, env: string) => void
+  onCreate: (version: string, environment: string) => Promise<void> | void
+  isLoading?: boolean
+  testId?: string
 }
 
-export function ReleaseForm({ onCreate }: ReleaseFormProps) {
-  const [version, setVersion] = useState('1.0.0')
-  const [env, setEnv] = useState('production')
-  
+export const ReleaseForm: React.FC<ReleaseFormProps> = ({ 
+  onCreate, 
+  isLoading = false,
+  testId = 'release-form' 
+}) => {
+  const [version, setVersion] = useState('')
+  const [environment, setEnvironment] = useState('production')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    
+    if (!version.trim() || !environment.trim() || isLoading || isSubmitting) return
+
+    setIsSubmitting(true)
+    
+    try {
+      await onCreate(version.trim(), environment.trim())
+      setVersion('') // Clear version on success
+    } catch (error) {
+      console.error('Failed to create release:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [version, environment, onCreate, isLoading, isSubmitting])
+
+  const disabled = !version.trim() || !environment.trim() || isLoading || isSubmitting
+
   return (
-    <div style={{ display: 'flex', gap: 8, margin: '8px 0' }} data-testid="release-form">
-      <input 
-        value={version} 
-        onChange={e => setVersion(e.target.value)} 
-        placeholder="Version" 
-        style={{ padding: 6 }} 
+    <form 
+      onSubmit={handleSubmit}
+      className="flex gap-2 my-2"
+      data-testid={testId}
+    >
+      <input
+        type="text"
+        value={version}
+        onChange={(e) => setVersion(e.target.value)}
+        placeholder="e.g., 1.2.3"
+        className="px-3 py-2 border border-slate-700 bg-slate-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={isLoading || isSubmitting}
         data-testid="release-version-input"
+        autoComplete="off"
       />
-      <input 
-        value={env} 
-        onChange={e => setEnv(e.target.value)} 
-        placeholder="Environment" 
-        style={{ padding: 6 }} 
-        data-testid="release-environment-input"
-      />
-      <button 
-        onClick={() => onCreate(version, env)}
+      <select
+        value={environment}
+        onChange={(e) => setEnvironment(e.target.value)}
+        className="px-3 py-2 border border-slate-700 bg-slate-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={isLoading || isSubmitting}
+        data-testid="release-environment-select"
+      >
+        <option value="production">Production</option>
+        <option value="staging">Staging</option>
+        <option value="development">Development</option>
+        <option value="testing">Testing</option>
+      </select>
+      <button
+        type="submit"
+        disabled={disabled}
+        className={`px-4 py-2 rounded font-medium transition-colors ${
+          disabled 
+            ? 'bg-slate-600 text-slate-400 cursor-not-allowed' 
+            : 'bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500'
+        }`}
         data-testid="create-release-button"
       >
-        Create Release
+        {isSubmitting ? 'Creating...' : 'Create Release'}
       </button>
-    </div>
+    </form>
   )
 }

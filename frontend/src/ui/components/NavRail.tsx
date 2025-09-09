@@ -1,11 +1,18 @@
-import React from 'react'
+import React, { useCallback } from 'react'
+
+type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects'
 
 interface NavRailProps {
-  active: 'logs'|'overview'|'dashboard'|'projects'
-  onChange: (v: 'logs'|'overview'|'dashboard'|'projects') => void
+  activeTab: NavigationTab
+  onChange: (tab: NavigationTab) => void
+  testId?: string
 }
 
-export function NavRail({ active, onChange }: NavRailProps) {
+export const NavRail: React.FC<NavRailProps> = ({ 
+  activeTab, 
+  onChange,
+  testId = 'nav-rail' 
+}) => {
   const Icon = ({ children }: { children: React.ReactNode }) => (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">{children}</svg>
   )
@@ -46,27 +53,77 @@ export function NavRail({ active, onChange }: NavRailProps) {
     </Icon>
   )
   
-  const Item = ({ label, isActive, onClick, icon, testId }: { label: string, isActive?: boolean, onClick?: () => void, icon: React.ReactNode, testId?: string }) => (
+  const NavItem: React.FC<{
+    label: string
+    isActive?: boolean
+    onClick?: () => void
+    icon: React.ReactNode
+    testId?: string
+  }> = useCallback(({ label, isActive, onClick, icon, testId }) => (
     <button 
       title={label} 
       onClick={onClick} 
-      className={`flex h-10 w-10 items-center justify-center rounded ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/60'} `} 
+      className={`flex h-10 w-10 items-center justify-center rounded transition-colors ${
+        isActive 
+          ? 'bg-slate-800 text-white' 
+          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-300'
+      }`} 
       aria-label={label}
       data-testid={testId}
     >
-      <span className="text-slate-300">{icon}</span>
+      <span>{icon}</span>
     </button>
-  )
+  ), [])
   
   return (
-    <nav className="sticky top-4 flex h-[calc(100vh-2rem)] w-14 flex-col items-center gap-2 rounded-xl border border-slate-800/60 p-2" data-testid="nav-rail">
-      <div className="mb-2 mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold" data-testid="nav-logo">MS</div>
-      <Item label="Overview" isActive={active==='overview'} onClick={()=>onChange('overview')} icon={<Home />} testId="nav-overview" />
-      <Item label="Explore (Logs)" isActive={active==='logs'} onClick={()=>onChange('logs')} icon={<Search />} testId="nav-logs" />
-      <Item label="Dashboards" isActive={active==='dashboard'} onClick={()=>onChange('dashboard')} icon={<Chart />} testId="nav-dashboard" />
-      <Item label="Projects" isActive={active==='projects'} onClick={()=>onChange('projects')} icon={<Folder />} testId="nav-projects" />
+    <nav 
+      className="sticky top-4 flex h-[calc(100vh-2rem)] w-14 flex-col items-center gap-2 rounded-xl border border-slate-800/60 bg-slate-900/50 p-2 backdrop-blur-sm" 
+      data-testid={testId}
+    >
+      <div 
+        className="mb-2 mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold shadow-lg" 
+        data-testid="nav-logo"
+        title="Mini Sentry"
+      >
+        MS
+      </div>
+      
+      <NavItem 
+        label="Overview" 
+        isActive={activeTab === 'overview'} 
+        onClick={() => onChange('overview')} 
+        icon={<Home />} 
+        testId="nav-overview" 
+      />
+      <NavItem 
+        label="Explore (Logs)" 
+        isActive={activeTab === 'logs'} 
+        onClick={() => onChange('logs')} 
+        icon={<Search />} 
+        testId="nav-logs" 
+      />
+      <NavItem 
+        label="Dashboards" 
+        isActive={activeTab === 'dashboard'} 
+        onClick={() => onChange('dashboard')} 
+        icon={<Chart />} 
+        testId="nav-dashboard" 
+      />
+      <NavItem 
+        label="Projects" 
+        isActive={activeTab === 'projects'} 
+        onClick={() => onChange('projects')} 
+        icon={<Folder />} 
+        testId="nav-projects" 
+      />
+      
       <div className="mt-auto" />
-      <Item label="Settings" icon={<Cog />} testId="nav-settings" />
+      
+      <NavItem 
+        label="Settings" 
+        icon={<Cog />} 
+        testId="nav-settings" 
+      />
     </nav>
   )
 }

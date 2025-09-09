@@ -56,11 +56,15 @@ capture.message('clicked X', { level: 'info' })
 
 React Error Boundary (optional)
 
-If you install the TypeScript package `@mini-sentry/client`, it provides a React ErrorBoundary to capture render errors automatically. For plain JS apps you can still use it — the package ships compiled JS; types are optional.
+If you install the published package `mini-sentry-client`, it provides a React ErrorBoundary to capture render errors automatically. For plain JS apps you can still use it — the package ships compiled JS; types are optional.
+
+```bash
+npm install mini-sentry-client
+```
 
 ```js
 // JS usage with the package (no TS required)
-import { initMiniSentry, MiniSentryErrorBoundary } from '@mini-sentry/client'
+import { initMiniSentry, MiniSentryErrorBoundary } from 'mini-sentry-client'
 const ms = initMiniSentry({ token: 'PASTE_TOKEN', baseUrl: 'http://localhost:8000' })
 // ...
 createRoot(el).render(
@@ -68,6 +72,15 @@ createRoot(el).render(
     <App />
   </MiniSentryErrorBoundary>
 )
+```
+
+Or use the CDN version:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/mini-sentry-client/dist/index.global.js"></script>
+<script>
+  const ms = window.MiniSentry.init({ token: 'PASTE_TOKEN', baseUrl: 'http://localhost:8000' })
+</script>
 ```
 
 ## 2) IIFE usage (no bundler/modules)

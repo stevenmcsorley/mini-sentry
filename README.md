@@ -91,7 +91,7 @@ This repo mirrors a smaller but integrated set (Django, Celery, Redis, Postgres,
 - Storage: PostgreSQL (primary relational store), Redis (cache + Celery broker/result backend).
 - Stream/OLAP: Kafka (events/sessions topics) + Snuba-like consumer → ClickHouse (OLAP for series/top groups/health).
 - Frontend: React + Vite dev server (Tailwind, dark mode), with Logs view (token search + brush), Groups/actions, Releases/Artifacts, Deployments, Release Health, and a Dashboard.
-- Client SDKs: TypeScript package `@mini-sentry/client` and plain JS examples (`examples/js-client`: ESM + IIFE) for apps without TS/bundlers.
+- Client SDKs: Published npm package `mini-sentry-client` and plain JS examples (`examples/js-client`: ESM + IIFE) for apps without TS/bundlers.
 - Symbolication: Upload JS sourcemaps as release artifacts; ingest performs best-effort symbolication; UI falls back to `POST /api/symbolicate/` when needed.
 - Alerts: Email/Webhook targets, snooze/unsnooze, rate limiting and windowed thresholds.
 - Orchestration: Docker Compose services — `web`, `worker`, `beat`, `postgres`, `redis`, `kafka`, `clickhouse`, `snuba`, `frontend`.
@@ -129,7 +129,7 @@ See `examples/README.md` for commands and details.
 ```mermaid
 flowchart LR
   subgraph Client Apps
-    A[JS/React Apps\n@mini-sentry/client or JS client]
+    A[JS/React Apps\nmini-sentry-client or JS client]
   end
   subgraph Django Backend
     API[REST API / Celery]
@@ -215,20 +215,27 @@ import { initMiniSentry, MiniSentryErrorBoundary } from './miniSentry'
 const ms = initMiniSentry({ token: '<TOKEN>', baseUrl: 'http://localhost:8000', release: '1.0.0', environment: 'development' })
 ```
 
-Option B — Package: `@mini-sentry/client` (recommended)
-- Build the package locally and install it in your apps:
+Option B — Published Package: `mini-sentry-client` (recommended)
+- Install the published package from npm:
 
 ```bash
-cd packages/mini-sentry-client && npm install && npm run build
-# In your app:
-npm i ../../packages/mini-sentry-client
+npm install mini-sentry-client
 ```
 
 - Initialize and (optionally) wrap your root with the provided ErrorBoundary:
 
 ```ts
-import { initMiniSentry, MiniSentryErrorBoundary } from '@mini-sentry/client'
+import { initMiniSentry, MiniSentryErrorBoundary } from 'mini-sentry-client'
 const ms = initMiniSentry({ token: import.meta.env.VITE_MS_TOKEN, baseUrl: '', release: '1.0.0', environment: import.meta.env.MODE })
+```
+
+- Or use the CDN version for quick testing:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/mini-sentry-client/dist/index.global.js"></script>
+<script>
+  const ms = window.MiniSentry.init({ token: 'YOUR_TOKEN', baseUrl: 'http://localhost:8000' })
+</script>
 ```
 
 Sending events and sessions
@@ -288,7 +295,7 @@ Planned enhancements: per‑level breakdowns, spike detector, release comparison
 
 ## Frontend Telemetry (Optional)
 
-By default, the main UI in `frontend/` is NOT instrumented so this repo stays portable and neutral. To test the client package end‑to‑end, use the example app in `examples/react`, which is already wired to `@mini-sentry/client` and includes a sourcemap uploader.
+By default, the main UI in `frontend/` is NOT instrumented so this repo stays portable and neutral. To test the client package end‑to‑end, use the example app in `examples/react`, which is already wired to `mini-sentry-client` and includes a sourcemap uploader.
 
 If you want to instrument your own app (or this UI) with the package:
 

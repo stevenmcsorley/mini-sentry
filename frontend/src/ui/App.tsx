@@ -1422,6 +1422,9 @@ function OverviewPage({
   setGroups: (groups: Group[]) => void
   snoozeGroup: (groupId: number, minutes?: number) => void
 }) {
+  const [assignModal, setAssignModal] = useState<{groupId: number, currentAssignee: string} | null>(null)
+  const [commentModal, setCommentModal] = useState<{groupId: number} | null>(null)
+
   return (
     <div data-testid="overview-page" className="space-y-6">
       {/* Project Header */}
@@ -1747,7 +1750,7 @@ function OverviewPage({
         <div className="overflow-x-auto" data-testid="groups-table">
           <table className="w-full text-sm">
             <thead className="text-left text-slate-400">
-              <tr><th>Last Seen</th><th>Level</th><th>Title</th><th>Count</th><th>Actions</th></tr>
+              <tr><th>Last Seen</th><th>Level</th><th>Title</th><th>Count</th><th>Status</th><th>Assignee</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {groups.map(g => (
@@ -1756,6 +1759,22 @@ function OverviewPage({
                   <td><LevelBadge level={g.level} /></td>
                   <td className="max-w-64 truncate">{g.title}</td>
                   <td>{g.count}</td>
+                  <td className="text-xs">
+                    {g.status === 'resolved' ? (
+                      <span className="bg-green-500/20 text-green-300 px-2 py-1 rounded-full">resolved</span>
+                    ) : g.status === 'ignored' ? (
+                      <span className="bg-gray-500/20 text-gray-300 px-2 py-1 rounded-full">ignored</span>
+                    ) : (
+                      <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded-full">open</span>
+                    )}
+                  </td>
+                  <td className="text-xs">
+                    {g.assignee ? (
+                      <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">{g.assignee}</span>
+                    ) : (
+                      <span className="text-slate-500">unassigned</span>
+                    )}
+                  </td>
                   <td className="space-x-1">
                     <button 
                       data-testid={`resolve-group-${g.id}`}
@@ -1781,14 +1800,14 @@ function OverviewPage({
                     <button 
                       data-testid={`assign-group-${g.id}`}
                       className="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800/60" 
-                      onClick={() => { const a=prompt('Assign to:'); if(a){ api(`/api/groups/${g.id}/assign/`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({assignee:a})}).then(()=>api(`/api/groups/?project=${selected!.slug}`).then(setGroups))}}}
+                      onClick={() => setAssignModal({groupId: g.id, currentAssignee: g.assignee || ''})}
                     >
                       Assign
                     </button>
                     <button 
                       data-testid={`comment-group-${g.id}`}
                       className="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800/60" 
-                      onClick={() => { const body=prompt('Comment body'); if(body){ api(`/api/groups/${g.id}/comments/`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({author:'ui', body})}).then(()=>alert('Comment added'))}}}
+                      onClick={() => setCommentModal({groupId: g.id})}
                     >
                       Comment
                     </button>
@@ -1808,6 +1827,117 @@ function OverviewPage({
           </table>
         </div>
       </section>
+
+      {/* Assignment Modal */}
+      {assignModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-96">
+            <h3 className="text-lg font-semibold text-white mb-4">Assign Issue</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Assign to user:</label>
+                <input
+                  type="text"
+                  placeholder="Enter username or email"
+                  defaultValue={assignModal.currentAssignee}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const assignee = (e.target as HTMLInputElement).value;
+                      api(`/api/groups/${assignModal.groupId}/assign/`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({assignee})
+                      }).then(() => {
+                        api(`/api/groups/?project=${selected!.slug}`).then(setGroups);
+                        setAssignModal(null);
+                      });
+                    }
+                  }}
+                  autoFocus
+                />
+                <p className="text-xs text-slate-400 mt-1">Press Enter to assign, or leave empty to unassign</p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  className="px-3 py-1 text-sm border border-slate-600 rounded hover:bg-slate-700"
+                  onClick={() => setAssignModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded text-white"
+                  onClick={() => {
+                    const input = document.querySelector('.fixed input') as HTMLInputElement;
+                    const assignee = input?.value || '';
+                    api(`/api/groups/${assignModal.groupId}/assign/`, {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify({assignee})
+                    }).then(() => {
+                      api(`/api/groups/?project=${selected!.slug}`).then(setGroups);
+                      setAssignModal(null);
+                    });
+                  }}
+                >
+                  Assign
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comment Modal */}
+      {commentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-96">
+            <h3 className="text-lg font-semibold text-white mb-4">Add Comment</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Comment:</label>
+                <textarea
+                  placeholder="Enter your comment..."
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm h-24 resize-none"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  className="px-3 py-1 text-sm border border-slate-600 rounded hover:bg-slate-700"
+                  onClick={() => setCommentModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700 rounded text-white"
+                  onClick={() => {
+                    const textarea = document.querySelector('.fixed textarea') as HTMLTextAreaElement;
+                    const body = textarea?.value || '';
+                    if (body.trim()) {
+                      api(`/api/groups/${commentModal.groupId}/comments/`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({author: 'ui', body})
+                      }).then(() => {
+                        setCommentModal(null);
+                        // Show success notification
+                        const notification = document.createElement('div');
+                        notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50';
+                        notification.textContent = 'Comment added successfully!';
+                        document.body.appendChild(notification);
+                        setTimeout(() => notification.remove(), 3000);
+                      });
+                    }
+                  }}
+                >
+                  Add Comment
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

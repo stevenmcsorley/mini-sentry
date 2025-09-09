@@ -1,7 +1,7 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { initMiniSentry, MiniSentryErrorBoundary } from '@mini-sentry/client'
+import { initMiniSentry, MiniSentryErrorBoundary } from 'mini-sentry-client'
 
 // Expect VITE_MS_TOKEN to be set in .env.local
 const token = import.meta.env.VITE_MS_TOKEN as string

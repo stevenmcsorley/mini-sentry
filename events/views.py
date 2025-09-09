@@ -304,12 +304,20 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             defaults={"title": title, "level": level, "first_seen": now, "last_seen": now, "count": 1},
         )
         if not created:
-            Group.objects.filter(id=group.id).update(
-                last_seen=now,
-                level=level,
-                count=F("count") + 1,
-            )
-            group.refresh_from_db(fields=["count", "last_seen", "level"])
+            # Check if group was resolved - if so, reopen it (Sentry regression logic)
+            updates = {
+                "last_seen": now,
+                "level": level,
+                "count": F("count") + 1,
+            }
+            
+            # If the group was resolved, mark it as unresolved (regression)
+            if group.status == Group.STATUS_RESOLVED:
+                updates["status"] = Group.STATUS_UNRESOLVED
+                updates["resolved_at"] = None
+                
+            Group.objects.filter(id=group.id).update(**updates)
+            group.refresh_from_db(fields=["count", "last_seen", "level", "status", "resolved_at"])
         return group
 
 

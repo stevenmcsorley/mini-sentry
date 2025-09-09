@@ -11,6 +11,8 @@ export type Group = {
   level: string
   count: number
   last_seen: string
+  status: string
+  assignee?: string
 }
 
 export type Event = {

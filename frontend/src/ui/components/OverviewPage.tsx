@@ -1,13 +1,18 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { LevelBadge } from './LevelBadge'
 import { AlertRuleForm } from './forms/AlertRuleForm'
+import { api } from '../utils/api.utils'
 
 // Import types
-type Project = { id: number; slug: string; name: string; ingest_token: string }
-type Release = { id: number; version: string; environment: string; created_at: string }
-type Deployment = { id: number; name: string; environment: string; date_started: string; date_finished?: string; url: string }
-type AlertRule = { id: number; name: string; level: string; threshold_count: number; target_type: string; target_value: string }
-type Group = { id: number; title: string; level: string; count: number; last_seen: string; status: string; assignee?: string }
+import type { 
+  Project, 
+  Release, 
+  Deployment, 
+  AlertRule, 
+  Group,
+  TimeRange,
+  TimeInterval 
+} from '../types/app.types'
 
 // Placeholder form components (TODO: Extract these)
 const ReleaseForm = ({ onCreate }: { onCreate: (version: string, env: string) => void }) => (
@@ -23,13 +28,6 @@ const AddTargetForm = ({ ruleId, onAdded }: { ruleId: number, onAdded: () => voi
   <div>Add Target Form Placeholder</div>
 )
 
-// API helper (will be imported)
-const api = async (path: string, opts?: RequestInit) => {
-  const res = await fetch(path, opts)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
-}
-
 interface OverviewPageProps {
   selected: Project
   releases: Release[]
@@ -39,10 +37,10 @@ interface OverviewPageProps {
   sessionUser: string
   setSessionUser: (user: string) => void
   sendSession: (status: 'init'|'ok'|'errored'|'crashed'|'exited') => void
-  range: '1h'|'24h'|'7d'|'30d'|'90d'|'1y'
-  setRange: (r: '1h'|'24h'|'7d'|'14d'|'30d'|'90d'|'1y') => void
-  interval: '1m'|'5m'|'15m'|'30m'|'1h'|'24h'|'7d'|'30d'
-  setInterval: (i: '1m'|'5m'|'15m'|'30m'|'1h'|'24h'|'7d'|'30d') => void
+  range: TimeRange
+  setRange: (r: TimeRange) => void
+  interval: TimeInterval
+  setInterval: (i: TimeInterval) => void
   refreshSeries: () => void
   series: any[]
   health: any[]

@@ -25,8 +25,7 @@ export const StatusSummary = ({
         
         const lists = await Promise.all(
           (rels || []).map((r: any) => 
-            fetch(`/api/releases/${r.id}/artifacts/`)
-              .then(res => res.ok ? res.json() : [])
+            api(`/api/releases/${r.id}/artifacts/`)
               .catch(() => [])
           )
         )

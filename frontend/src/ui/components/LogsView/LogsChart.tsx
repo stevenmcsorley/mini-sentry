@@ -14,6 +14,7 @@ import type {
   SeriesDataPoint
 } from '../../types/app.types'
 import { normISO, fmtDate } from '../../utils/date.utils'
+import { api } from '../../utils/api.utils'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, BrushComponent, CanvasRenderer])
 
@@ -58,8 +59,7 @@ export const LogsChart = ({
   // Fetch chart data
   useEffect(() => {
     const ib = (i: string) => (i === '5m' || i === '1h') ? i : (i === '1m' ? '5m' : (i === '15m' ? '5m' : (i === '30m' ? '1h' : '1h')))
-    fetch(`/api/dashboard/series/?project=${selected.slug}&range=${range}&interval=${ib(interval)}&backend=ch`)
-      .then(r => r.json())
+    api(`/api/dashboard/series/?project=${selected.slug}&range=${range}&interval=${ib(interval)}&backend=ch`)
       .then(setSeries)
       .catch(() => {})
   }, [selected.slug, range, interval])

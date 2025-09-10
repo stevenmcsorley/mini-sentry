@@ -679,13 +679,13 @@ When('I switch to the {string} tab', async function (this: MiniSentryWorld, tabN
   let tabSelector: string;
   switch (tabName.toLowerCase()) {
     case 'logs':
-      tabSelector = 'button[title="Explore (Logs)"]';
+      tabSelector = '[data-testid="nav-logs"]';
       break;
     case 'overview':
-      tabSelector = 'button[title="Overview"]';
+      tabSelector = '[data-testid="nav-overview"]';
       break;
     case 'dashboard':
-      tabSelector = 'button[title="Dashboards"]';
+      tabSelector = '[data-testid="nav-dashboard"]';
       break;
     default:
       throw new Error(`Unknown tab: ${tabName}`);
@@ -700,13 +700,13 @@ When('I switch back to the {string} tab', async function (this: MiniSentryWorld,
   let tabSelector: string;
   switch (tabName.toLowerCase()) {
     case 'logs':
-      tabSelector = 'button[title="Explore (Logs)"]';
+      tabSelector = '[data-testid="nav-logs"]';
       break;
     case 'overview':
-      tabSelector = 'button[title="Overview"]';
+      tabSelector = '[data-testid="nav-overview"]';
       break;
     case 'dashboard':
-      tabSelector = 'button[title="Dashboards"]';
+      tabSelector = '[data-testid="nav-dashboard"]';
       break;
     default:
       throw new Error(`Unknown tab: ${tabName}`);
@@ -903,13 +903,13 @@ When('I create a release and then navigate to the {string} tab', async function 
   let tabSelector: string;
   switch (tabName.toLowerCase()) {
     case 'logs':
-      tabSelector = 'button[title="Explore (Logs)"]';
+      tabSelector = '[data-testid="nav-logs"]';
       break;
     case 'overview':
-      tabSelector = 'button[title="Overview"]';
+      tabSelector = '[data-testid="nav-overview"]';
       break;
     case 'dashboard':
-      tabSelector = 'button[title="Dashboards"]';
+      tabSelector = '[data-testid="nav-dashboard"]';
       break;
     default:
       throw new Error(`Unknown tab: ${tabName}`);
@@ -958,13 +958,13 @@ When('I send session data and navigate to the {string} tab', async function (thi
   let tabSelector: string;
   switch (tabName.toLowerCase()) {
     case 'logs':
-      tabSelector = 'button[title="Explore (Logs)"]';
+      tabSelector = '[data-testid="nav-logs"]';
       break;
     case 'overview':
-      tabSelector = 'button[title="Overview"]';
+      tabSelector = '[data-testid="nav-overview"]';
       break;
     case 'dashboard':
-      tabSelector = 'button[title="Dashboards"]';
+      tabSelector = '[data-testid="nav-dashboard"]';
       break;
     default:
       throw new Error(`Unknown tab: ${tabName}`);

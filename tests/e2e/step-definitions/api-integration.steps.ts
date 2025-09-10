@@ -16,16 +16,16 @@ Given('I am on the {string} tab', async function (this: MiniSentryWorld, tabName
   let tabSelector: string;
   switch (tabName.toLowerCase()) {
     case 'logs':
-      tabSelector = 'button[title="Explore (Logs)"]';
+      tabSelector = '[data-testid="nav-logs"]';
       break;
     case 'overview':
-      tabSelector = 'button[title="Overview"]';
+      tabSelector = '[data-testid="nav-overview"]';
       break;
     case 'dashboard':
-      tabSelector = 'button[title="Dashboard"]';
+      tabSelector = '[data-testid="nav-dashboard"]';
       break;
     case 'projects':
-      tabSelector = 'button[title="Projects"]';
+      tabSelector = '[data-testid="nav-projects"]';
       break;
     default:
       throw new Error(`Unknown tab: ${tabName}`);
@@ -109,7 +109,7 @@ Then('the {string} endpoint should receive the event', async function (this: Min
   // The event should have been posted to the ingestion endpoint
   // We'll verify this by checking if a new event appears in the UI
   await this.page.goto('http://localhost:5173');
-  const logsTab = this.page.locator('button[title="Explore (Logs)"]');
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
   if (await logsTab.isVisible()) {
     await logsTab.click();
     await this.page.waitForTimeout(1000);

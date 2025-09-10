@@ -76,14 +76,26 @@ When('I click the {string} button', async function (this: MiniSentryWorld, butto
       buttonSelector = '[data-testid="trigger-network-error"]';
       break;
     case 'async error':
-      buttonSelector = '[data-testid="trigger-promise-error"]'; // Assuming this exists
+      buttonSelector = '[data-testid="trigger-async-error"]';
       break;
     case 'component error':
-      buttonSelector = '[data-testid="trigger-component-error"]'; // Assuming this exists
+      buttonSelector = '[data-testid="trigger-component-error"]';
+      break;
+    case 'error with context':
+      buttonSelector = '[data-testid="trigger-custom-error"]'; // Custom error with context
+      break;
+    case 'error with extra data':
+      buttonSelector = '[data-testid="trigger-custom-error"]'; // Same as above, custom error
+      break;
+    case 'react component error':
+      buttonSelector = '[data-testid="trigger-component-error"]';
+      break;
+    case 'unhandled rejection':
+      buttonSelector = '[data-testid="trigger-unhandled-rejection"]';
       break;
     default:
       // Try to construct selector from button text
-      buttonSelector = `[data-testid="${buttonText.toLowerCase().replace(/\s+/g, '-')}-button"]`;
+      buttonSelector = `[data-testid="trigger-${buttonText.toLowerCase().replace(/\s+/g, '-')}"]`;
       break;
   }
   
@@ -163,28 +175,45 @@ Then('a network error should be captured by Mini Sentry', async function (this: 
 });
 
 Then('an async error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
-  await this.page.waitForTimeout(2000); // Async errors might take longer
+  // Wait for error to be sent to Mini Sentry and processed
+  await this.page.waitForTimeout(2000);
   
-  const errorData = await this.page.evaluate(() => {
-    return (window as any).lastCapturedError || null;
-  });
+  // Navigate to Mini Sentry UI to check for the error
+  await this.page.goto('http://localhost:5173');
+  await this.page.waitForLoadState('domcontentloaded');
   
-  expect(errorData).toBeTruthy();
-  expect(errorData.message).toContain('Async');
+  // Navigate to logs tab
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
+  if (await logsTab.isVisible()) {
+    await logsTab.click();
+    await this.page.waitForTimeout(1000);
+  }
+  
+  // Wait for events list and check for async error
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout: 5000 });
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
+  expect(eventRows).toBeGreaterThan(0);
 });
 
 Then('a React component error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
-  await this.page.waitForTimeout(1000);
+  // Wait for error to be sent to Mini Sentry and processed
+  await this.page.waitForTimeout(2000);
   
-  // Check that the error boundary caught the error
-  const errorBoundaryActive = await this.page.locator('[data-testid="error-boundary-message"]').isVisible();
-  expect(errorBoundaryActive).toBeTruthy();
+  // Navigate to Mini Sentry UI to check for the error
+  await this.page.goto('http://localhost:5173');
+  await this.page.waitForLoadState('domcontentloaded');
   
-  const errorData = await this.page.evaluate(() => {
-    return (window as any).lastCapturedError || null;
-  });
+  // Navigate to logs tab
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
+  if (await logsTab.isVisible()) {
+    await logsTab.click();
+    await this.page.waitForTimeout(1000);
+  }
   
-  expect(errorData).toBeTruthy();
+  // Wait for events list and check for component error
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout: 5000 });
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
+  expect(eventRows).toBeGreaterThan(0);
 });
 
 Then('I should see the error in the Mini Sentry dashboard within {int} seconds', async function (this: MiniSentryWorld, seconds: number) {

@@ -14,10 +14,33 @@ Given('I am on the Mini Sentry UI', async function(this: MiniSentryWorld) {
 });
 
 Given('I am on the overview page', async function(this: MiniSentryWorld) {
-  // Navigate to overview tab using title attribute (matching working tests)
-  const overviewButton = this.page.locator('button[title="Overview"]');
+  // Navigate to overview tab first
+  const overviewButton = this.page.locator('[data-testid="nav-overview"]');
   await overviewButton.click();
-  await expect(this.page.locator('[data-testid="overview-page"]')).toBeVisible();
+  await this.page.waitForTimeout(500);
+  
+  // Check if we need to select a project first
+  const needsProject = await this.page.locator('text="Create or select a project"').isVisible();
+  
+  if (needsProject) {
+    // Go to projects tab and select test project
+    const projectsTab = this.page.locator('[data-testid="nav-projects"]');
+    await projectsTab.click();
+    await this.page.waitForTimeout(500);
+    
+    const selectProjectButton = this.page.locator('[data-testid="select-project-4"]');
+    if (await selectProjectButton.isVisible()) {
+      await selectProjectButton.click();
+      await this.page.waitForTimeout(500);
+    }
+    
+    // Return to overview tab
+    await overviewButton.click();
+    await this.page.waitForTimeout(1000);
+  }
+  
+  // Wait for overview page to load
+  await expect(this.page.locator('[data-testid="overview-page"]')).toBeVisible({ timeout: 10000 });
 });
 
 Given('I scroll to the alert management section', async function(this: MiniSentryWorld) {

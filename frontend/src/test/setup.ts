@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom'
 import { server } from '../mocks/server'
 import { resetMockData } from '../mocks/handlers'
 import { beforeAll, afterEach, afterAll } from 'vitest'

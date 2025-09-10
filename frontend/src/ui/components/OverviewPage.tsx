@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { LevelBadge } from './LevelBadge'
 import { AlertRuleForm } from './forms/AlertRuleForm'
+import { DeploymentForm } from './forms/DeploymentForm'
+import { ReleaseForm } from './forms/ReleaseForm'
+import { ArtifactForm } from './forms/ArtifactForm'
+import { AddTargetForm } from './forms/AddTargetForm'
 import { api } from '../utils/api.utils'
 
 // Import types
@@ -14,19 +18,11 @@ import type {
   TimeInterval 
 } from '../types/app.types'
 
-// Placeholder form components (TODO: Extract these)
-const ReleaseForm = ({ onCreate }: { onCreate: (version: string, env: string) => void }) => (
-  <div>Release Form Placeholder</div>
-)
-const ArtifactForm = ({ releaseId }: { releaseId: number }) => (
-  <div>Artifact Form Placeholder</div>
-)
-const DeploymentForm = ({ onCreate }: { onCreate: (name: string, url: string, env: string, releaseId?: number) => void }) => (
-  <div>Deployment Form Placeholder</div>
-)
-const AddTargetForm = ({ ruleId, onAdded }: { ruleId: number, onAdded: () => void }) => (
-  <div>Add Target Form Placeholder</div>
-)
+// All form components now imported from forms/ directory
+// - ReleaseForm now imported from forms/ReleaseForm
+// - DeploymentForm now imported from forms/DeploymentForm  
+// - ArtifactForm now imported from forms/ArtifactForm
+// - AddTargetForm now imported from forms/AddTargetForm
 
 interface OverviewPageProps {
   selected: Project

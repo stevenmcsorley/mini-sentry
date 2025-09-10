@@ -7,6 +7,7 @@ export { TimeRangeMenu } from './TimeRangeMenu'
 // UI components
 export { LevelBadge } from './LevelBadge'
 export { OverviewPage } from './OverviewPage'
+export { ToggleSwitch } from './ToggleSwitch'
 
 // Form components
 export { ProjectForm } from './forms/ProjectForm'

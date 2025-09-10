@@ -28,9 +28,6 @@ export interface LogsViewProps {
   interval: TimeInterval
   setRange: (r: TimeRange) => void
   setInterval: (i: TimeInterval) => void
-  onSendTest: () => void
-  msg: string
-  setMsg: (s: string) => void
   timeSel: TimeSelection | null
   setTimeSel: (v: TimeSelection | null) => void
   eventLimit: number

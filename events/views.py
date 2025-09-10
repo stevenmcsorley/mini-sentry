@@ -733,6 +733,7 @@ class EventSeriesView(APIView):
         backend = request.query_params.get("backend", "ch")
         from_param = request.query_params.get("from")
         to_param = request.query_params.get("to")
+        env_param = request.query_params.get("env")
 
         def parse_range(s: str):
             if s.endswith('h'):
@@ -747,9 +748,9 @@ class EventSeriesView(APIView):
         if backend == 'ch':
             try:
                 if from_param and to_param:
-                    rows = query_events_series_by_level(project_slug, bucket=interval, from_iso=from_param, to_iso=to_param)
+                    rows = query_events_series_by_level(project_slug, bucket=interval, from_iso=from_param, to_iso=to_param, environment=env_param)
                 else:
-                    rows = query_events_series_by_level(project_slug, minutes=minutes, bucket=interval)
+                    rows = query_events_series_by_level(project_slug, minutes=minutes, bucket=interval, environment=env_param)
                 return Response(rows)
             except Exception as e:
                 return Response({"detail": f"clickhouse error: {e}"}, status=500)
@@ -758,6 +759,8 @@ class EventSeriesView(APIView):
         from django.db.models import Count
         trunc = TruncHour('received_at') if interval == '1h' else TruncMinute('received_at')
         qs = Event.objects.filter(project__slug=project_slug)
+        if env_param:
+            qs = qs.filter(environment=env_param)
         if from_param:
             from django.utils.dateparse import parse_datetime
             dt = parse_datetime(from_param)
@@ -829,3 +832,71 @@ class TopGroupsView(APIView):
         agg = qs.values('group__fingerprint', 'group__title').annotate(c=Count('id')).order_by('-c')[:limit]
         data = [{"fingerprint": r['group__fingerprint'], "title": r['group__title'], "count": r['c']} for r in agg]
         return Response(data)
+
+
+import json
+import time
+from django.http import StreamingHttpResponse
+
+
+def event_stream_view(request):
+    """Server-Sent Events endpoint for real-time event monitoring"""
+    
+    project_slug = request.GET.get('project')
+    if not project_slug:
+        return StreamingHttpResponse(
+            status=400,
+            content="project parameter required"
+        )
+    
+    def event_stream():
+        # Send initial connection message
+        yield f"data: {json.dumps({'type': 'connection', 'status': 'connected', 'project': project_slug})}\n\n"
+        
+        # Keep connection alive and send periodic heartbeats
+        start_time = time.time()
+        event_count = 0
+        
+        while True:
+            try:
+                # Send heartbeat every 30 seconds
+                if int(time.time() - start_time) % 30 == 0:
+                    yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': int(time.time() * 1000)})}\n\n"
+                
+                # Simulate sending events (in real implementation, you'd listen to Kafka/Redis/etc)
+                # For demo purposes, send a test event every 60 seconds
+                if int(time.time() - start_time) % 60 == 0 and int(time.time() - start_time) > 0:
+                    event_count += 1
+                    test_event = {
+                        'type': 'event',
+                        'id': f'test-event-{event_count}',
+                        'project': project_slug,
+                        'level': 'error',
+                        'message': f'Real-time test event #{event_count}',
+                        'timestamp': int(time.time() * 1000),
+                        'environment': 'production'
+                    }
+                    yield f"data: {json.dumps(test_event)}\n\n"
+                
+                time.sleep(1)
+                
+            except GeneratorExit:
+                break
+            except Exception as e:
+                error_msg = {
+                    'type': 'error',
+                    'message': str(e),
+                    'timestamp': int(time.time() * 1000)
+                }
+                yield f"data: {json.dumps(error_msg)}\n\n"
+                break
+    
+    response = StreamingHttpResponse(
+        event_stream(),
+        content_type='text/event-stream'
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['Connection'] = 'keep-alive'
+    response['Access-Control-Allow-Origin'] = '*'
+    response['Access-Control-Allow-Headers'] = 'Cache-Control'
+    return response

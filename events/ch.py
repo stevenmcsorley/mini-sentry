@@ -48,7 +48,7 @@ def query_session_series(project: str, minutes: int = 1440, bucket: str = '5m'):
     return get_client().query(sql, parameters={"project": project, "minutes": minutes}).result_rows
 
 
-def query_events_series_by_level(project: str, minutes: int = 60, bucket: str = '5m', from_iso: str | None = None, to_iso: str | None = None):
+def query_events_series_by_level(project: str, minutes: int = 60, bucket: str = '5m', from_iso: str | None = None, to_iso: str | None = None, environment: str | None = None):
     client = get_client()
     # Determine granularity function
     if bucket == '1h':
@@ -57,25 +57,34 @@ def query_events_series_by_level(project: str, minutes: int = 60, bucket: str = 
         trunc = 'toStartOfFiveMinutes' if bucket == '5m' else 'toStartOfMinute'
     else:
         trunc = 'toStartOfFiveMinutes'
+    # Build WHERE clause with optional environment filter
+    env_filter = " AND environment = %(environment)s" if environment else ""
+    
     if from_iso and to_iso:
         sql = f"""
             SELECT {trunc}(toDateTime(received_at)) AS bucket, level, count() AS c
             FROM sentry.events
             WHERE project = %(project)s
               AND received_at BETWEEN parseDateTimeBestEffort(%(from)s) AND parseDateTimeBestEffort(%(to)s)
+              {env_filter}
             GROUP BY bucket, level
             ORDER BY bucket
         """
         params = {"project": project, "from": from_iso, "to": to_iso}
+        if environment:
+            params["environment"] = environment
     else:
         sql = f"""
             SELECT {trunc}(toDateTime(received_at)) AS bucket, level, count() AS c
             FROM sentry.events
             WHERE project = %(project)s AND received_at >= now() - toIntervalMinute(%(minutes)s)
+              {env_filter}
             GROUP BY bucket, level
             ORDER BY bucket
         """
         params = {"project": project, "minutes": minutes}
+        if environment:
+            params["environment"] = environment
     rows = client.query(sql, parameters=params).result_rows
     # Fold rows into series with columns per level
     out = {}

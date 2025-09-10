@@ -28,6 +28,7 @@ interface LogsChartProps {
   legendSel: LegendSelection
   setLegendSel: (sel: LegendSelection) => void
   setFilterLevel: (level: string) => void
+  filterEnv?: string
   className?: string
   testId?: string
 }
@@ -42,6 +43,7 @@ export const LogsChart = ({
   legendSel,
   setLegendSel,
   setFilterLevel,
+  filterEnv,
   className,
   testId = 'logs-chart'
 }: LogsChartProps) => {
@@ -59,10 +61,26 @@ export const LogsChart = ({
   // Fetch chart data
   useEffect(() => {
     const ib = (i: string) => (i === '5m' || i === '1h') ? i : (i === '1m' ? '5m' : (i === '15m' ? '5m' : (i === '30m' ? '1h' : '1h')))
-    api(`/api/dashboard/series/?project=${selected.slug}&range=${range}&interval=${ib(interval)}&backend=ch`)
+    
+    let apiUrl = `/api/dashboard/series/?project=${selected.slug}&interval=${ib(interval)}&backend=ch`
+    
+    if (customRange && customRange.from && customRange.to) {
+      // Use custom range with from/to parameters
+      apiUrl += `&from=${customRange.from}&to=${customRange.to}`
+    } else {
+      // Use range parameter for relative time ranges
+      apiUrl += `&range=${range}`
+    }
+    
+    // Add environment filter if specified
+    if (filterEnv) {
+      apiUrl += `&env=${encodeURIComponent(filterEnv)}`
+    }
+    
+    api(apiUrl)
       .then(setSeries)
       .catch(() => {})
-  }, [selected.slug, range, interval])
+  }, [selected.slug, range, interval, customRange, filterEnv])
 
   // Sync chart zoom with time selection
   useEffect(() => {

@@ -4,8 +4,10 @@ import type { LogsViewProps } from './LogsView.types'
 import { TimeRangeMenu } from '../TimeRangeMenu'
 import { LevelBadge } from '../LevelBadge'
 import { StatusSummary } from '../StatusSummary'
+import { ToggleSwitch } from '../ToggleSwitch'
 import { parseTokens, removeTokenFromQuery } from '../../utils/search.utils'
 import { fmtDate } from '../../utils/date.utils'
+import { useRealTimeEvents } from '../../hooks/useRealTimeEvents'
 import { LogsChart } from './LogsChart'
 import { EventsList } from './EventsList'
 import { SearchFilters } from './SearchFilters'
@@ -29,9 +31,6 @@ export const LogsView = ({
   interval, 
   setRange, 
   setInterval,
-  onSendTest,
-  msg, 
-  setMsg,
   timeSel, 
   setTimeSel,
   eventLimit, 
@@ -45,9 +44,37 @@ export const LogsView = ({
   testId = 'logs-view'
 }: LogsViewProps) => {
   const [legendSel, setLegendSel] = useState({ error: true, warning: true, info: true })
+  const [realTimeEnabled, setRealTimeEnabled] = useState(false)
   
   const tokens = parseTokens(search)
   const visibleEvents = events.filter(e => legendSel[e.level ?? 'error'] !== false)
+
+  // Real-time events handling
+  const handleNewEvent = useCallback((newEvent: any) => {
+    // For now, we'll let the parent component handle data refetching
+    // This ensures the new event gets added to the events list
+    console.log('[LogsView] New real-time event received:', newEvent)
+    
+    // Optional: Show a notification or update indicator
+    // You could dispatch a custom event or call a prop callback here
+  }, [])
+
+  const handleRealTimeError = useCallback((error: Event) => {
+    console.error('[LogsView] Real-time connection error:', error)
+    setRealTimeEnabled(false)
+  }, [])
+
+  const handleConnectionChange = useCallback((connected: boolean) => {
+    console.log('[LogsView] Real-time connection status:', connected)
+  }, [])
+
+  const { isConnected, connectionError, eventCount, lastEventTime } = useRealTimeEvents({
+    projectSlug: selected.slug,
+    enabled: realTimeEnabled,
+    onNewEvent: handleNewEvent,
+    onError: handleRealTimeError,
+    onConnectionChange: handleConnectionChange
+  })
 
   const handleProjectChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
     const p = projects.find(pp => pp.id === Number(e.target.value))
@@ -64,9 +91,9 @@ export const LogsView = ({
     setSearch(e.target.value)
   }, [setSearch])
 
-  const handleMsgChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setMsg(e.target.value)
-  }, [setMsg])
+  const handleRealTimeToggle = useCallback((enabled: boolean) => {
+    setRealTimeEnabled(enabled)
+  }, [])
 
   const handleEnvChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
     setFilterEnv(e.target.value)
@@ -150,23 +177,29 @@ export const LogsView = ({
           
           <StatusSummary projectSlug={selected.slug} />
           
-          <div className="flex items-center gap-2">
-            <input 
-              type="text"
-              value={msg} 
-              onChange={handleMsgChange}
-              className="w-48 rounded border border-slate-700 bg-slate-800 text-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              data-testid="test-message-input"
-              autoComplete="off"
+          <div className="flex items-center gap-4">
+            <ToggleSwitch
+              enabled={realTimeEnabled}
+              onToggle={handleRealTimeToggle}
+              label="Real-time"
+              testId="real-time-toggle"
             />
-            <button 
-              type="button"
-              onClick={onSendTest}
-              className="rounded border border-slate-700 px-3 py-1.5 text-sm text-white hover:bg-slate-800/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              data-testid="send-test-event-button"
-            >
-              Send test event
-            </button>
+            
+            {connectionError && (
+              <div className="flex items-center gap-1 text-xs text-red-400">
+                <div className="h-2 w-2 rounded-full bg-red-500" />
+                <span title={connectionError}>Connection error</span>
+              </div>
+            )}
+            
+            {realTimeEnabled && isConnected && eventCount > 0 && (
+              <div className="flex items-center gap-1 text-xs text-slate-400">
+                <span>{eventCount} events received</span>
+                {lastEventTime && (
+                  <span>• Last: {new Date(lastEventTime).toLocaleTimeString()}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -192,6 +225,7 @@ export const LogsView = ({
         legendSel={legendSel}
         setLegendSel={setLegendSel}
         setFilterLevel={setFilterLevel}
+        filterEnv={filterEnv}
       />
 
       {/* Events List */}

@@ -24,14 +24,12 @@ import { useAlertService } from './hooks/useAlertService'
 
 
 interface AppState {
-  msg: string
   sessionUser: string
   eventDetails: EventDetails
   editRule: EditRuleState
 }
 
 const initialState: AppState = {
-  msg: 'Example error from UI',
   sessionUser: 'user-123',
   eventDetails: {},
   editRule: { threshold: 10, window: 5, notify: 60 }
@@ -68,7 +66,7 @@ export const App = () => {
 
   const eventService = useEventService({
     selected: routing.selected,
-    msg: state.msg,
+    msg: 'Real-time event monitoring',
     releases: projectData.releases,
     onRefetch: projectData.refetch,
     onEventDetailsUpdate: (id, details) => {
@@ -102,10 +100,6 @@ export const App = () => {
 
 
   // Simple state setters for non-routing state
-  const setMsg = useCallback((msg: string) => {
-    setState(prev => ({ ...prev, msg }))
-  }, [])
-
   const setSessionUser = useCallback((sessionUser: string) => {
     setState(prev => ({ ...prev, sessionUser }))
   }, [])
@@ -162,9 +156,6 @@ export const App = () => {
                     interval={routing.interval}
                     setRange={routing.setRange}
                     setInterval={routing.setInterval}
-                    onSendTest={eventService.sendEvent}
-                    msg={state.msg}
-                    setMsg={setMsg}
                     timeSel={routing.timeSel}
                     setTimeSel={routing.setTimeSel}
                     eventLimit={routing.eventLimit}

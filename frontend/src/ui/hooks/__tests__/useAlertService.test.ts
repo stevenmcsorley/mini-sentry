@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useAlertService } from '../useAlertService'
 import { mockProject } from '../../../test/utils'
+import { resetMockData, mockGroups } from '../../../mocks/handlers'
 
 describe('useAlertService', () => {
   const mockOnRefetch = vi.fn()
@@ -29,6 +30,7 @@ describe('useAlertService', () => {
   }
 
   beforeEach(() => {
+    resetMockData()
     vi.clearAllMocks()
     // Reset alert spy
     vi.spyOn(window, 'alert').mockImplementation(() => {})
@@ -152,7 +154,7 @@ describe('useAlertService', () => {
   it('should snooze group successfully with default minutes', async () => {
     const { result } = renderHook(() => useAlertService(defaultParams))
 
-    await result.current.snoozeGroup(123)
+    await result.current.snoozeGroup(mockGroups[0].id)
 
     await waitFor(() => {
       expect(window.alert).toHaveBeenCalledWith('Snoozed alerts for this group')
@@ -162,7 +164,7 @@ describe('useAlertService', () => {
   it('should snooze group with custom minutes', async () => {
     const { result } = renderHook(() => useAlertService(defaultParams))
 
-    await result.current.snoozeGroup(123, 120)
+    await result.current.snoozeGroup(mockGroups[0].id, 120)
 
     await waitFor(() => {
       expect(window.alert).toHaveBeenCalledWith('Snoozed alerts for this group')
@@ -186,7 +188,7 @@ describe('useAlertService', () => {
   it('should handle API errors during group snooze', async () => {
     const { result } = renderHook(() => useAlertService(defaultParams))
 
-    await expect(result.current.snoozeGroup(123)).resolves.not.toThrow()
+    await expect(result.current.snoozeGroup(mockGroups[0].id)).resolves.not.toThrow()
   })
 
   it('should use first rule ID for updates and snoozing', async () => {
@@ -202,7 +204,7 @@ describe('useAlertService', () => {
     }))
 
     await result.current.updateFirstRule()
-    await result.current.snoozeGroup(123)
+    await result.current.snoozeGroup(mockGroups[0].id)
 
     await waitFor(() => {
       expect(mockOnRefetch).toHaveBeenCalledTimes(1) // Only updateFirstRule calls refetch

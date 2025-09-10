@@ -57,30 +57,45 @@ const initialState: ProjectDataState = {
 export const useProjectData = (params: ProjectDataHookParams) => {
   const [state, setState] = useState<ProjectDataState>(initialState)
 
+  const {
+    selected,
+    filterLevel,
+    filterEnv,
+    filterRelease,
+    search,
+    timeSel,
+    eventLimit,
+    eventOffset,
+    activeTab,
+    customRange,
+    range,
+    interval
+  } = params
+
   const fetchData = useCallback(async () => {
-    if (!params.selected) return
+    if (!selected) return
     
     setState(prev => ({ ...prev, loading: true }))
 
     try {
       // Calculate time parameters
-      let timeParams = params.timeSel
-      if (!timeParams && (params.customRange || params.range !== '24h')) {
+      let timeParams = timeSel
+      if (!timeParams && (customRange || range !== '24h')) {
         const now = Date.now()
         let minutes = 0
         
-        if (params.customRange) {
-          minutes = params.customRange.unit === 'm' ? params.customRange.value :
-                   params.customRange.unit === 'h' ? params.customRange.value * 60 :
-                   params.customRange.unit === 'd' ? params.customRange.value * 24 * 60 :
-                   params.customRange.unit === 'w' ? params.customRange.value * 7 * 24 * 60 : 1440
+        if (customRange) {
+          minutes = customRange.unit === 'm' ? customRange.value :
+                   customRange.unit === 'h' ? customRange.value * 60 :
+                   customRange.unit === 'd' ? customRange.value * 24 * 60 :
+                   customRange.unit === 'w' ? customRange.value * 7 * 24 * 60 : 1440
         } else {
-          minutes = params.range === '1h' ? 60 : 
-                   params.range === '24h' ? 1440 : 
-                   params.range === '7d' ? 10080 : 
-                   params.range === '14d' ? 20160 : 
-                   params.range === '30d' ? 43200 : 
-                   params.range === '90d' ? 129600 : 525600
+          minutes = range === '1h' ? 60 : 
+                   range === '24h' ? 1440 : 
+                   range === '7d' ? 10080 : 
+                   range === '14d' ? 20160 : 
+                   range === '30d' ? 43200 : 
+                   range === '90d' ? 129600 : 525600
         }
         
         timeParams = {
@@ -90,31 +105,31 @@ export const useProjectData = (params: ProjectDataHookParams) => {
       }
       
       // Fetch groups
-      const gq = new URLSearchParams({ project: params.selected.slug })
+      const gq = new URLSearchParams({ project: selected.slug })
       if (timeParams) {
         gq.set('from', timeParams.from)
         gq.set('to', timeParams.to)
       }
-      const groupsPromise = api(`/api/groups/?${gq.toString()}`)
+      const groupsPromise = api(`/api/groups?${gq.toString()}`)
         .then(d => asList<Group>(d))
         .catch(() => [])
       
       // Fetch events
-      const q = new URLSearchParams({ project: params.selected.slug })
-      if (params.filterLevel) q.set('level', params.filterLevel)
-      if (params.filterEnv) q.set('environment', params.filterEnv)
-      if (params.filterRelease) q.set('release', params.filterRelease)
-      if (params.search) q.set('q', params.search)
+      const q = new URLSearchParams({ project: selected.slug })
+      if (filterLevel) q.set('level', filterLevel)
+      if (filterEnv) q.set('environment', filterEnv)
+      if (filterRelease) q.set('release', filterRelease)
+      if (search) q.set('q', search)
       if (timeParams) {
         q.set('from', timeParams.from)
         q.set('to', timeParams.to)
       }
-      if (params.activeTab === 'logs') {
-        q.set('limit', String(params.eventLimit))
-        q.set('offset', String(params.eventOffset))
+      if (activeTab === 'logs') {
+        q.set('limit', String(eventLimit))
+        q.set('offset', String(eventOffset))
       }
       
-      const eventsPromise = api(`/api/events/?${q.toString()}`)
+      const eventsPromise = api(`/api/events?${q.toString()}`)
         .then((d) => {
           if (Array.isArray(d)) {
             return { events: d, total: d.length }
@@ -127,23 +142,23 @@ export const useProjectData = (params: ProjectDataHookParams) => {
         .catch(() => ({ events: [], total: 0 }))
       
       // Fetch other data
-      const releasesPromise = api(`/api/releases/?project=${params.selected.slug}`)
+      const releasesPromise = api(`/api/releases?project=${selected.slug}`)
         .then(d => asList<Release>(d))
         .catch(() => [])
       
-      const rulesPromise = api(`/api/alert-rules/?project=${params.selected.slug}`)
+      const rulesPromise = api(`/api/alert-rules?project=${selected.slug}`)
         .then(d => asList<AlertRule>(d))
         .catch(() => [])
       
-      const healthPromise = api(`/api/releases/health/?project=${params.selected.slug}`)
+      const healthPromise = api(`/api/releases/health?project=${selected.slug}`)
         .then(d => d)
         .catch(() => [])
       
-      const deploysPromise = api(`/api/deployments/?project=${params.selected.slug}`)
+      const deploysPromise = api(`/api/deployments?project=${selected.slug}`)
         .then(d => asList<Deployment>(d))
         .catch(() => [])
       
-      const seriesPromise = api(`/api/releases/health/series/?project=${params.selected.slug}&range=${params.range}&interval=${params.interval}`)
+      const seriesPromise = api(`/api/releases/health/series?project=${selected.slug}&range=${range}&interval=${interval}`)
         .then(d => d)
         .catch(() => [])
       
@@ -175,18 +190,18 @@ export const useProjectData = (params: ProjectDataHookParams) => {
       setState(prev => ({ ...prev, loading: false }))
     }
   }, [
-    params.selected,
-    params.filterLevel,
-    params.filterEnv,
-    params.filterRelease,
-    params.search,
-    params.timeSel,
-    params.eventLimit,
-    params.eventOffset,
-    params.activeTab,
-    params.customRange,
-    params.range,
-    params.interval
+    selected,
+    filterLevel,
+    filterEnv,
+    filterRelease,
+    search,
+    timeSel,
+    eventLimit,
+    eventOffset,
+    activeTab,
+    customRange,
+    range,
+    interval
   ])
 
   useEffect(() => {

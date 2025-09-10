@@ -1,76 +1,89 @@
 import { http, HttpResponse } from 'msw'
 
 // Mock data
-const mockProjects = [
-  { id: 1, name: 'Test Project', slug: 'test-project', ingest_token: 'test-token-123' },
-  { id: 2, name: 'Another Project', slug: 'another-project', ingest_token: 'test-token-456' }
-]
+export let mockProjects = []
+export let mockGroups = []
+export let mockEvents = []
+export let mockReleases = []
+export let mockRules = []
+export let mockDeployments = []
+export let mockHealth = []
+export let mockSeries = []
 
-const mockGroups = [
-  { id: 1, title: 'TypeError: Cannot read property', level: 'error', count: 5 },
-  { id: 2, title: 'ReferenceError: undefined variable', level: 'error', count: 3 },
-  { id: 3, title: 'Network timeout', level: 'warning', count: 8 }
-]
+export const resetMockData = () => {
+  mockProjects = [
+    { id: 1, name: 'Test Project', slug: 'test-project', ingest_token: 'test-token-123' },
+    { id: 2, name: 'Another Project', slug: 'another-project', ingest_token: 'test-token-456' }
+  ]
 
-const mockEvents = [
-  { 
-    id: 1, 
-    message: 'Test error message', 
-    level: 'error', 
-    timestamp: '2023-01-01T12:00:00Z',
-    stack: 'Error: Test\n  at test.js:1:1',
-    release: 1,
-    environment: 'production'
-  },
-  { 
-    id: 2, 
-    message: 'Another error', 
-    level: 'warning', 
-    timestamp: '2023-01-01T12:05:00Z',
-    stack: null,
-    release: null,
-    environment: 'staging'
-  }
-]
+  mockGroups = [
+    { id: 1, title: 'TypeError: Cannot read property', level: 'error', count: 5 },
+    { id: 2, title: 'ReferenceError: undefined variable', level: 'error', count: 3 },
+    { id: 3, title: 'Network timeout', level: 'warning', count: 8 }
+  ]
 
-const mockReleases = [
-  { id: 1, version: '1.0.0', environment: 'production', created: '2023-01-01T10:00:00Z' },
-  { id: 2, version: '1.0.1', environment: 'staging', created: '2023-01-01T11:00:00Z' }
-]
+  mockEvents = [
+    { 
+      id: 1, 
+      message: 'Test error message', 
+      level: 'error', 
+      timestamp: '2023-01-01T12:00:00Z',
+      stack: 'Error: Test\n  at test.js:1:1',
+      release: 1,
+      environment: 'production'
+    },
+    { 
+      id: 2, 
+      message: 'Another error', 
+      level: 'warning', 
+      timestamp: '2023-01-01T12:05:00Z',
+      stack: null,
+      release: null,
+      environment: 'staging'
+    }
+  ]
 
-const mockRules = [
-  { 
-    id: 1, 
-    name: 'High Error Rate', 
-    level: 'error', 
-    threshold_count: 10, 
-    threshold_window_minutes: 5,
-    notify_interval_minutes: 60,
-    target_type: 'email',
-    target_value: 'admin@test.com'
-  }
-]
+  mockReleases = [
+    { id: 1, version: '1.0.0', environment: 'production', created: '2023-01-01T10:00:00Z' },
+    { id: 2, version: '1.0.1', environment: 'staging', created: '2023-01-01T11:00:00Z' }
+  ]
 
-const mockDeployments = [
-  { 
-    id: 1, 
-    name: 'Production Deploy', 
-    url: 'https://app.test.com', 
-    environment: 'production',
-    release: 1,
-    created: '2023-01-01T12:00:00Z'
-  }
-]
+  mockRules = [
+    { 
+      id: 1, 
+      name: 'High Error Rate', 
+      level: 'error', 
+      threshold_count: 10, 
+      threshold_window_minutes: 5,
+      notify_interval_minutes: 60,
+      target_type: 'email',
+      target_value: 'admin@test.com'
+    }
+  ]
 
-const mockHealth = [
-  { release: '1.0.0', sessions: 1000, errors: 5, crashed: 1 },
-  { release: '1.0.1', sessions: 500, errors: 2, crashed: 0 }
-]
+  mockDeployments = [
+    { 
+      id: 1, 
+      name: 'Production Deploy', 
+      url: 'https://app.test.com', 
+      environment: 'production',
+      release: 1,
+      created: '2023-01-01T12:00:00Z'
+    }
+  ]
 
-const mockSeries = [
-  { name: 'Sessions', data: [[1672574400000, 100], [1672660800000, 150]] },
-  { name: 'Errors', data: [[1672574400000, 5], [1672660800000, 3]] }
-]
+  mockHealth = [
+    { release: '1.0.0', sessions: 1000, errors: 5, crashed: 1 },
+    { release: '1.0.1', sessions: 500, errors: 2, crashed: 0 }
+  ]
+
+  mockSeries = [
+    { name: 'Sessions', data: [[1672574400000, 100], [1672660800000, 150]] },
+    { name: 'Errors', data: [[1672574400000, 5], [1672660800000, 3]] }
+  ]
+}
+
+resetMockData()
 
 export const handlers = [
   // Projects endpoints
@@ -86,7 +99,7 @@ export const handlers = [
       slug: body.slug,
       ingest_token: `token-${Date.now()}`
     }
-    return HttpResponse.json(newProject)
+    return HttpResponse.json(newProject, { status: 201 })
   }),
 
   // Groups endpoints
@@ -119,7 +132,7 @@ export const handlers = [
     const event = mockEvents.find(e => e.id === parseInt(id as string))
     
     if (!event) {
-      return HttpResponse.json({ error: 'Event not found' }, { status: 404 })
+      return HttpResponse.json({ detail: 'Event not found' }, { status: 404 })
     }
 
     return HttpResponse.json({
@@ -130,10 +143,9 @@ export const handlers = [
 
   http.post('/api/events/ingest/token/:token', async ({ params, request }) => {
     const { token } = params
-    const body = await request.json()
-    
-    if (!token) {
-      return HttpResponse.json({ error: 'Invalid token' }, { status: 401 })
+    const project = mockProjects.find(p => p.ingest_token === token)
+    if (!project) {
+      return HttpResponse.json({ detail: 'No Project matches the given query.' }, { status: 404 })
     }
 
     return HttpResponse.json({ success: true, eventId: Date.now() })
@@ -158,7 +170,7 @@ export const handlers = [
       project: body.project,
       created: new Date().toISOString()
     }
-    return HttpResponse.json(newRelease)
+    return HttpResponse.json(newRelease, { status: 201 })
   }),
 
   http.get('/api/releases/health', ({ request }) => {
@@ -200,7 +212,7 @@ export const handlers = [
       target_value: body.target_value,
       project: body.project
     }
-    return HttpResponse.json(newRule)
+    return HttpResponse.json(newRule, { status: 201 })
   }),
 
   http.patch('/api/alert-rules/:id', async ({ params, request }) => {
@@ -219,6 +231,10 @@ export const handlers = [
   http.post('/api/alert-rules/:id/snooze', async ({ params, request }) => {
     const { id } = params
     const body = await request.json()
+    const group = mockGroups.find(g => g.id === body.group)
+    if (!group) {
+      return HttpResponse.json({ detail: 'No Group matches the given query.' }, { status: 404 })
+    }
     
     return HttpResponse.json({ 
       success: true, 
@@ -249,18 +265,17 @@ export const handlers = [
       project: body.project,
       created: new Date().toISOString()
     }
-    return HttpResponse.json(newDeployment)
+    return HttpResponse.json(newDeployment, { status: 201 })
   }),
 
   // Sessions endpoints
   http.post('/api/sessions/ingest/token/:token', async ({ params, request }) => {
     const { token } = params
-    const body = await request.json()
-    
-    if (!token) {
-      return HttpResponse.json({ error: 'Invalid token' }, { status: 401 })
+    const project = mockProjects.find(p => p.ingest_token === token)
+    if (!project) {
+      return HttpResponse.json({ detail: 'No Project matches the given query.' }, { status: 404 })
     }
-
+    const body = await request.json()
     return HttpResponse.json({ 
       success: true, 
       sessionId: body.session_id,

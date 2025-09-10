@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback } from 'react'
 import type { 
   Project, 
   NavigationTab, 
@@ -57,42 +57,73 @@ export const useAppRouting = (
     interval: '5m',
     initializedFromURL: false
   })
+  
+  const [isInitializing, setIsInitializing] = useState(true)
 
-  // Initialize from URL hash on first load
-  useEffect(() => {
+  // Initialize from URL hash on first load (use useLayoutEffect to run before other effects)
+  useLayoutEffect(() => {
     if (state.initializedFromURL) return
     
     const params = new URLSearchParams(window.location.hash.slice(1))
-    const updates: Partial<RoutingState> = { initializedFromURL: true }
+    const updates: Partial<RoutingState> = {}
+    let hasUrlParams = false
     
     // Parse URL parameters
     const view = params.get('view') as NavigationTab
-    if (view && ['logs', 'overview', 'dashboard', 'projects'].includes(view)) {
-      updates.activeTab = view
+    if (view) {
+      hasUrlParams = true // Any view parameter counts as having URL params
+      if (['logs', 'overview', 'dashboard', 'projects'].includes(view)) {
+        updates.activeTab = view
+      }
     }
     
     const q = params.get('q')
-    if (q) updates.search = q
+    if (q) {
+      updates.search = q
+      hasUrlParams = true
+    }
     
     const lvl = params.get('level')
-    if (lvl) updates.filterLevel = lvl
+    if (lvl) {
+      updates.filterLevel = lvl
+      hasUrlParams = true
+    }
     
     const env = params.get('env')
-    if (env) updates.filterEnv = env
+    if (env) {
+      updates.filterEnv = env
+      hasUrlParams = true
+    }
     
     const rel = params.get('release')
-    if (rel) updates.filterRelease = rel
+    if (rel) {
+      updates.filterRelease = rel
+      hasUrlParams = true
+    }
     
     const from = params.get('from')
     const to = params.get('to')
-    if (from && to) updates.timeSel = { from, to }
+    if (from && to) {
+      updates.timeSel = { from, to }
+      hasUrlParams = true
+    }
     
     const lim = params.get('limit')
     const off = params.get('offset')
-    if (lim) updates.eventLimit = parseInt(lim, 10) || 50
-    if (off) updates.eventOffset = parseInt(off, 10) || 0
+    if (lim) {
+      updates.eventLimit = parseInt(lim, 10) || 50
+      hasUrlParams = true
+    }
+    if (off) {
+      updates.eventOffset = parseInt(off, 10) || 0
+      hasUrlParams = true
+    }
+    
+    // Only set initializedFromURL to true if there were actual URL parameters
+    updates.initializedFromURL = hasUrlParams
     
     setState(prev => ({ ...prev, ...updates }))
+    setIsInitializing(false)
   }, [state.initializedFromURL])
 
   // Handle project selection from URL and localStorage
@@ -105,47 +136,51 @@ export const useAppRouting = (
     if (wanted) {
       const bySlug = projects.find(p => p.slug === wanted)
       if (bySlug) {
-        setState(prev => ({
-          ...prev,
-          selected: bySlug,
-          range: '24h',
-          interval: '1h',
-          timeSel: null,
-          customRange: null
-        }))
+        setState(prev => {
+          if (prev.selected?.slug === bySlug.slug) return prev // Prevent unnecessary updates
+          return {
+            ...prev,
+            selected: bySlug,
+            range: '24h',
+            interval: '1h',
+            timeSel: null,
+            customRange: null
+          }
+        })
         return
       }
     }
     
-    if (!state.selected) {
+    setState(prev => {
+      if (prev.selected) return prev // Don't change if already selected
+      
       // Check localStorage for previously selected project
       const lastProjectSlug = localStorage.getItem('mini-sentry-last-project')
       if (lastProjectSlug) {
         const lastProject = projects.find(p => p.slug === lastProjectSlug)
         if (lastProject) {
-          setState(prev => ({
+          return {
             ...prev,
             selected: lastProject,
             range: '24h',
             interval: '1h',
             timeSel: null,
             customRange: null
-          }))
-          return
+          }
         }
       }
       
       // Fall back to first project
-      setState(prev => ({
+      return {
         ...prev,
         selected: projects[0],
         range: '24h',
         interval: '1h',
         timeSel: null,
         customRange: null
-      }))
-    }
-  }, [projects, state.selected])
+      }
+    })
+  }, [projects])
 
   // Sync state to URL hash
   useEffect(() => {
@@ -184,10 +219,12 @@ export const useAppRouting = (
     state.eventOffset
   ])
 
-  // Reset pagination when filters change
+  // Reset pagination when filters change (but not during initial URL load)
   useEffect(() => {
+    if (isInitializing) return
     setState(prev => ({ ...prev, eventOffset: 0 }))
   }, [
+    isInitializing,
     state.selected,
     state.filterLevel,
     state.filterEnv,

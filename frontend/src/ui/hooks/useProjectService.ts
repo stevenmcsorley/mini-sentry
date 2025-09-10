@@ -10,7 +10,7 @@ interface UseProjectServiceParams {
 export const useProjectService = ({ onProjectCreated, onReload }: UseProjectServiceParams) => {
   const createProject = useCallback(async (name: string) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-    const created = await api('/api/projects/', {
+    const created = await api('/api/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, slug }),

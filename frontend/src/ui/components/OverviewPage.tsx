@@ -367,7 +367,7 @@ export function OverviewPage({
               </div>
               
               <div data-testid="alert-targets-form">
-                <AddTargetForm ruleId={rules[0].id} onAdded={() => api(`/api/alert-rules/?project=${selected!.slug}`).then(setRules)} />
+                <AddTargetForm ruleId={rules[0].id} onAdded={() => api(`/api/alert-rules/?project=${selected!.slug}/`).then(setRules)} />
               </div>
             </div>
           )}
@@ -436,21 +436,21 @@ export function OverviewPage({
                     <button 
                       data-testid={`resolve-group-${g.id}`}
                       className="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800/60" 
-                      onClick={() => api(`/api/groups/${g.id}/resolve/`, {method:'POST'}).then(()=>api(`/api/groups/?project=${selected!.slug}`).then(setGroups))}
+                      onClick={() => api(`/api/groups/${g.id}/resolve/`, {method:'POST'}).then(()=>api(`/api/groups/?project=${selected!.slug}/`).then(setGroups))}
                     >
                       Resolve
                     </button>
                     <button 
                       data-testid={`unresolve-group-${g.id}`}
                       className="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800/60" 
-                      onClick={() => api(`/api/groups/${g.id}/unresolve/`, {method:'POST'}).then(()=>api(`/api/groups/?project=${selected!.slug}`).then(setGroups))}
+                      onClick={() => api(`/api/groups/${g.id}/unresolve/`, {method:'POST'}).then(()=>api(`/api/groups/?project=${selected!.slug}/`).then(setGroups))}
                     >
                       Unresolve
                     </button>
                     <button 
                       data-testid={`ignore-group-${g.id}`}
                       className="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800/60" 
-                      onClick={() => api(`/api/groups/${g.id}/ignore/`, {method:'POST'}).then(()=>api(`/api/groups/?project=${selected!.slug}`).then(setGroups))}
+                      onClick={() => api(`/api/groups/${g.id}/ignore/`, {method:'POST'}).then(()=>api(`/api/groups/?project=${selected!.slug}/`).then(setGroups))}
                     >
                       Ignore
                     </button>
@@ -506,7 +506,7 @@ export function OverviewPage({
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({assignee})
                       }).then(() => {
-                        api(`/api/groups/?project=${selected!.slug}`).then(setGroups);
+                        api(`/api/groups/?project=${selected!.slug}/`).then(setGroups);
                         setAssignModal(null);
                       });
                     }
@@ -532,7 +532,7 @@ export function OverviewPage({
                       headers: {'Content-Type': 'application/json'},
                       body: JSON.stringify({assignee})
                     }).then(() => {
-                      api(`/api/groups/?project=${selected!.slug}`).then(setGroups);
+                      api(`/api/groups/?project=${selected!.slug}/`).then(setGroups);
                       setAssignModal(null);
                     });
                   }}

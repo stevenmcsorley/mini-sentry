@@ -22,7 +22,7 @@ export const useReleaseService = ({
   const createRelease = useCallback(async (version: string, environment: string) => {
     if (!selected) return
     
-    await api('/api/releases/', {
+    await api('/api/releases', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project: selected.id, version, environment }),
@@ -36,7 +36,7 @@ export const useReleaseService = ({
     if (!releaseId && releases.length === 0) return
     
     const rid = releaseId || releases[0].id
-    await api('/api/deployments/', {
+    await api('/api/deployments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 

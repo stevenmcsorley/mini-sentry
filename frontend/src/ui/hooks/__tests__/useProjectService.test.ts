@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useProjectService } from '../useProjectService'
+import { mockProjects, resetMockData } from '../../../mocks/handlers'
 
 describe('useProjectService', () => {
   const mockOnProjectCreated = vi.fn()
@@ -12,6 +13,7 @@ describe('useProjectService', () => {
   }
 
   beforeEach(() => {
+    resetMockData()
     vi.clearAllMocks()
   })
 

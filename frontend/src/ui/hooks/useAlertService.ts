@@ -13,7 +13,7 @@ export const useAlertService = ({ selected, rules, editRule, onRefetch }: UseAle
   const createRule = useCallback(async (name: string, level: string, threshold: number, targetType: 'email'|'webhook', targetValue: string) => {
     if (!selected) return
     
-    await api('/api/alert-rules/', {
+    await api('/api/alert-rules', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 

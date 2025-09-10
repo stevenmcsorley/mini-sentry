@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useReleaseService } from '../useReleaseService'
 import { mockProject } from '../../../test/utils'
+import { resetMockData } from '../../../mocks/handlers'
 
 describe('useReleaseService', () => {
   const mockOnRefetch = vi.fn()
@@ -18,6 +19,7 @@ describe('useReleaseService', () => {
   }
 
   beforeEach(() => {
+    resetMockData()
     vi.clearAllMocks()
   })
 

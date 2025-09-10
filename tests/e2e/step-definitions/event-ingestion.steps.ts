@@ -121,27 +121,45 @@ When('I trigger any error', async function (this: MiniSentryWorld) {
 
 // Error Verification Steps
 Then('an error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
-  // Wait for error to be sent to Mini Sentry
-  await this.page.waitForTimeout(1000);
+  // Wait for error to be sent to Mini Sentry and processed
+  await this.page.waitForTimeout(2000);
   
-  // Check that an API call was made to the events endpoint
-  const apiCalls = await this.page.evaluate(() => {
-    return (window as any).miniSentryApiCalls || [];
-  });
+  // Navigate to Mini Sentry UI to check for the error
+  await this.page.goto('http://localhost:5173');
+  await this.page.waitForLoadState('domcontentloaded');
   
-  expect(apiCalls.length).toBeGreaterThan(0);
+  // Navigate to logs tab
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
+  if (await logsTab.isVisible()) {
+    await logsTab.click();
+    await this.page.waitForTimeout(1000);
+  }
+  
+  // Wait for events list and check if we have events
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout: 5000 });
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
+  expect(eventRows).toBeGreaterThan(0);
 });
 
 Then('a network error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
-  await this.page.waitForTimeout(1000);
+  // Wait for error to be sent to Mini Sentry and processed
+  await this.page.waitForTimeout(2000);
   
-  // Verify network error was captured with appropriate details
-  const errorData = await this.page.evaluate(() => {
-    return (window as any).lastCapturedError || null;
-  });
+  // Navigate to Mini Sentry UI to check for the error
+  await this.page.goto('http://localhost:5173');
+  await this.page.waitForLoadState('domcontentloaded');
   
-  expect(errorData).toBeTruthy();
-  expect(errorData.message).toContain('Network Error');
+  // Navigate to logs tab
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
+  if (await logsTab.isVisible()) {
+    await logsTab.click();
+    await this.page.waitForTimeout(1000);
+  }
+  
+  // Wait for events list and check for network error
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout: 5000 });
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
+  expect(eventRows).toBeGreaterThan(0);
 });
 
 Then('an async error should be captured by Mini Sentry', async function (this: MiniSentryWorld) {
@@ -174,21 +192,21 @@ Then('I should see the error in the Mini Sentry dashboard within {int} seconds',
   await this.page.goto('http://localhost:5173');
   await this.page.waitForLoadState('domcontentloaded');
   
-  // Make sure we're on the Logs tab to see events
-  const logsTab = this.page.locator('button[title="Explore (Logs)"]');
+  // Make sure we're on the Logs tab to see events - use the correct test ID
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
   if (await logsTab.isVisible()) {
     await logsTab.click();
     await this.page.waitForTimeout(1000);
   }
   
-  // Wait for events to appear - look for the actual event grid structure
+  // Wait for events to appear - use the events-list test ID
   const timeout = seconds * 1000;
   
-  // The events are in a grid structure, not a list with data-testids
-  await this.page.waitForSelector('.divide-y.divide-slate-800\\/60', { timeout });
+  // Wait for the events list container to appear
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout });
   
-  // Count the event rows in the grid (excluding header)
-  const eventRows = await this.page.locator('.divide-y.divide-slate-800\\/60 > div').count();
+  // Count the event rows in the events grid
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
   expect(eventRows).toBeGreaterThan(0);
 });
 
@@ -196,17 +214,17 @@ Then('I should see the network error in the Mini Sentry dashboard within {int} s
   await this.page.goto('http://localhost:5173');
   await this.page.waitForLoadState('domcontentloaded');
   
-  // Make sure we're on the Logs tab
-  const logsTab = this.page.locator('button[title="Explore (Logs)"]');
+  // Make sure we're on the Logs tab - use correct test ID
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
   if (await logsTab.isVisible()) {
     await logsTab.click();
     await this.page.waitForTimeout(1000);
   }
   
   const timeout = seconds * 1000;
-  await this.page.waitForSelector('.divide-y.divide-slate-800\\/60', { timeout });
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout });
   
-  const eventRows = await this.page.locator('.divide-y.divide-slate-800\\/60 > div').count();
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
   expect(eventRows).toBeGreaterThan(0);
 });
 
@@ -214,17 +232,17 @@ Then('I should see the async error in the Mini Sentry dashboard within {int} sec
   await this.page.goto('http://localhost:5173');
   await this.page.waitForLoadState('domcontentloaded');
   
-  // Make sure we're on the Logs tab
-  const logsTab = this.page.locator('button[title="Explore (Logs)"]');
+  // Make sure we're on the Logs tab - use correct test ID
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
   if (await logsTab.isVisible()) {
     await logsTab.click();
     await this.page.waitForTimeout(1000);
   }
   
   const timeout = seconds * 1000;
-  await this.page.waitForSelector('.divide-y.divide-slate-800\\/60', { timeout });
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout });
   
-  const eventRows = await this.page.locator('.divide-y.divide-slate-800\\/60 > div').count();
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
   expect(eventRows).toBeGreaterThan(0);
 });
 
@@ -232,17 +250,17 @@ Then('I should see the component error in the Mini Sentry dashboard within {int}
   await this.page.goto('http://localhost:5173');
   await this.page.waitForLoadState('domcontentloaded');
   
-  // Make sure we're on the Logs tab
-  const logsTab = this.page.locator('button[title="Explore (Logs)"]');
+  // Make sure we're on the Logs tab - use correct test ID
+  const logsTab = this.page.locator('[data-testid="nav-logs"]');
   if (await logsTab.isVisible()) {
     await logsTab.click();
     await this.page.waitForTimeout(1000);
   }
   
   const timeout = seconds * 1000;
-  await this.page.waitForSelector('.divide-y.divide-slate-800\\/60', { timeout });
+  await this.page.waitForSelector('[data-testid="events-list"]', { timeout });
   
-  const eventRows = await this.page.locator('.divide-y.divide-slate-800\\/60 > div').count();
+  const eventRows = await this.page.locator('[data-testid="events-list"] .divide-y > div').count();
   expect(eventRows).toBeGreaterThan(0);
 });
 

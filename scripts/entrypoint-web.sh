@@ -8,4 +8,5 @@ python manage.py migrate --noinput
 # Collect static files for admin and apps (idempotent)
 python manage.py collectstatic --noinput || true
 
-exec gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 3
+# Use Daphne ASGI server for WebSocket support
+exec daphne -b 0.0.0.0 -p 8000 core.asgi:application

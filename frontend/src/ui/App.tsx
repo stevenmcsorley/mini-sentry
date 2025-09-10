@@ -165,6 +165,7 @@ export const App = () => {
                     eventTotal={projectData.eventTotal}
                     customRange={routing.customRange}
                     setCustomRange={routing.setCustomRange}
+                    onNewRealtimeEvent={projectData.addRealtimeEvent}
                   />
                 ) : (
                   <p className="text-sm text-slate-400">

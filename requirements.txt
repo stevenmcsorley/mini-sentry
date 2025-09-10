@@ -10,3 +10,6 @@ kafka-python==2.0.2
 clickhouse-connect==0.7.19
 requests==2.32.3
 whitenoise==6.7.0
+channels==4.0.0
+channels-redis==4.2.0
+daphne==4.1.2

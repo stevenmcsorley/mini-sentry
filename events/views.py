@@ -173,8 +173,10 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 sym = symbolicate_frames_for_release(release, frames, stack)
                 event.symbolicated = {"frames": sym}
                 event.save(update_fields=["symbolicated"])
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Kafka publish error: {e}")
+            import traceback
+            traceback.print_exc()
         # Kick off async processing (stub)
         try:
             process_event.delay(event.id)
@@ -190,16 +192,54 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             publish_event(
                 {
                     "id": event.id,
+                    "event_id": event.id,
                     "project": project.slug,
                     "message": message,
                     "level": level,
+                    "environment": env,
                     "fingerprint": group.fingerprint if group else None,
                     "title": group.title if group else None,
                     "received_at": event.received_at.isoformat(),
                 }
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Kafka publish error: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Publish to WebSocket channels for real-time updates
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            import time
+            
+            channel_layer = get_channel_layer()
+            print(f"📡 [WebSocket] Channel layer available: {channel_layer is not None}")
+            
+            if channel_layer:
+                event_data = {
+                    "type": "new_event",
+                    "event_id": event.id,
+                    "project": project.slug,
+                    "message": message,
+                    "level": level,
+                    "environment": env,
+                    "fingerprint": group.fingerprint if group else None,
+                    "timestamp": int(time.time() * 1000),
+                }
+                print(f"📡 [WebSocket] Publishing event to group 'events_{project.slug}': {event_data}")
+                
+                async_to_sync(channel_layer.group_send)(
+                    f"events_{project.slug}",
+                    event_data
+                )
+                print(f"✅ [WebSocket] Event published successfully")
+            else:
+                print("❌ [WebSocket] No channel layer available")
+        except Exception as e:
+            print(f"❌ [WebSocket] Publish error: {e}")
+            import traceback
+            traceback.print_exc()
         return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=["get"], url_path="clickhouse")
@@ -258,8 +298,10 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 sym = symbolicate_frames_for_release(release, frames, stack)
                 event.symbolicated = {"frames": sym}
                 event.save(update_fields=["symbolicated"])
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Kafka publish error: {e}")
+            import traceback
+            traceback.print_exc()
         try:
             process_event.delay(event.id)
         except Exception:
@@ -272,16 +314,54 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             publish_event(
                 {
                     "id": event.id,
+                    "event_id": event.id,
                     "project": project.slug,
                     "message": message,
                     "level": level,
+                    "environment": env,
                     "fingerprint": group.fingerprint if group else None,
                     "title": group.title if group else None,
                     "received_at": event.received_at.isoformat(),
                 }
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Kafka publish error: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Publish to WebSocket channels for real-time updates
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            import time
+            
+            channel_layer = get_channel_layer()
+            print(f"📡 [WebSocket] Channel layer available: {channel_layer is not None}")
+            
+            if channel_layer:
+                event_data = {
+                    "type": "new_event",
+                    "event_id": event.id,
+                    "project": project.slug,
+                    "message": message,
+                    "level": level,
+                    "environment": env,
+                    "fingerprint": group.fingerprint if group else None,
+                    "timestamp": int(time.time() * 1000),
+                }
+                print(f"📡 [WebSocket] Publishing event to group 'events_{project.slug}': {event_data}")
+                
+                async_to_sync(channel_layer.group_send)(
+                    f"events_{project.slug}",
+                    event_data
+                )
+                print(f"✅ [WebSocket] Event published successfully")
+            else:
+                print("❌ [WebSocket] No channel layer available")
+        except Exception as e:
+            print(f"❌ [WebSocket] Publish error: {e}")
+            import traceback
+            traceback.print_exc()
         return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
 
     def _get_or_create_release(self, project: Project, payload: dict):
@@ -463,15 +543,19 @@ class ReleaseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.Ge
         import hashlib, json as _json
         try:
             payload["checksum"] = hashlib.sha256(payload["content"].encode("utf-8")).hexdigest()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Kafka publish error: {e}")
+            import traceback
+            traceback.print_exc()
         try:
             obj = _json.loads(payload["content"]) if isinstance(payload["content"], str) else None
             if isinstance(obj, dict):
                 if obj.get("file"):
                     payload["file_name"] = str(obj.get("file"))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Kafka publish error: {e}")
+            import traceback
+            traceback.print_exc()
         serializer = ArtifactSerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -601,8 +685,10 @@ class SessionIngestView(APIView):
                 "duration_ms": duration_ms,
                 "started_at": (obj.started_at or timezone.now()).isoformat(),
             })
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Kafka publish error: {e}")
+            import traceback
+            traceback.print_exc()
         return Response(SessionSerializer(obj).data, status=201 if created else 200)
 
 
@@ -834,69 +920,4 @@ class TopGroupsView(APIView):
         return Response(data)
 
 
-import json
-import time
-from django.http import StreamingHttpResponse
-
-
-def event_stream_view(request):
-    """Server-Sent Events endpoint for real-time event monitoring"""
-    
-    project_slug = request.GET.get('project')
-    if not project_slug:
-        return StreamingHttpResponse(
-            status=400,
-            content="project parameter required"
-        )
-    
-    def event_stream():
-        # Send initial connection message
-        yield f"data: {json.dumps({'type': 'connection', 'status': 'connected', 'project': project_slug})}\n\n"
-        
-        # Keep connection alive and send periodic heartbeats
-        start_time = time.time()
-        event_count = 0
-        
-        while True:
-            try:
-                # Send heartbeat every 30 seconds
-                if int(time.time() - start_time) % 30 == 0:
-                    yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': int(time.time() * 1000)})}\n\n"
-                
-                # Simulate sending events (in real implementation, you'd listen to Kafka/Redis/etc)
-                # For demo purposes, send a test event every 60 seconds
-                if int(time.time() - start_time) % 60 == 0 and int(time.time() - start_time) > 0:
-                    event_count += 1
-                    test_event = {
-                        'type': 'event',
-                        'id': f'test-event-{event_count}',
-                        'project': project_slug,
-                        'level': 'error',
-                        'message': f'Real-time test event #{event_count}',
-                        'timestamp': int(time.time() * 1000),
-                        'environment': 'production'
-                    }
-                    yield f"data: {json.dumps(test_event)}\n\n"
-                
-                time.sleep(1)
-                
-            except GeneratorExit:
-                break
-            except Exception as e:
-                error_msg = {
-                    'type': 'error',
-                    'message': str(e),
-                    'timestamp': int(time.time() * 1000)
-                }
-                yield f"data: {json.dumps(error_msg)}\n\n"
-                break
-    
-    response = StreamingHttpResponse(
-        event_stream(),
-        content_type='text/event-stream'
-    )
-    response['Cache-Control'] = 'no-cache'
-    response['Connection'] = 'keep-alive'
-    response['Access-Control-Allow-Origin'] = '*'
-    response['Access-Control-Allow-Headers'] = 'Cache-Control'
-    return response
+# SSE implementation removed - replaced with WebSocket + Redis for better reliability

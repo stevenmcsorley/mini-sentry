@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "channels",
     "events",
 ]
 
@@ -56,6 +57,25 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "core.wsgi.application"
+ASGI_APPLICATION = "core.asgi.application"
+
+# Django Channels configuration
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.environ.get("REDIS_URL", "redis://localhost:6379/0")],
+            "capacity": 300,  # Maximum messages in channel
+            "expiry": 60,     # Message expiry in seconds
+        },
+    },
+}
+
+# WebSocket settings
+if DEBUG:
+    import logging
+    logging.getLogger('daphne').setLevel(logging.INFO)
+    logging.getLogger('channels').setLevel(logging.INFO)
 
 
 def parse_database_url(url: str):

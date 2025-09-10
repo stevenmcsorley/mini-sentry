@@ -37,6 +37,7 @@ export interface LogsViewProps {
   eventTotal: number
   customRange: CustomRangeType | null
   setCustomRange: (customRange: CustomRangeType | null) => void
+  onNewRealtimeEvent?: (event: Event) => void
   className?: string
   testId?: string
 }

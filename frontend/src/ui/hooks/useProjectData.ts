@@ -212,8 +212,17 @@ export const useProjectData = (params: ProjectDataHookParams) => {
     fetchData()
   }, [fetchData])
 
+  const addRealtimeEvent = useCallback((event: Event) => {
+    setState(prev => ({
+      ...prev,
+      events: [event, ...prev.events],
+      eventTotal: prev.eventTotal + 1
+    }))
+  }, [])
+
   return {
     ...state,
-    refetch
+    refetch,
+    addRealtimeEvent
   }
 }

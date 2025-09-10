@@ -120,8 +120,31 @@
       let i = 0;
       const tick = () => {
         if (i >= plan.length) { log('🔥 Burst complete'); return; }
-        try { plan[i++](); sent++; updateCounts(); }
-        catch (e) { sent++; updateCounts(); log('Caught sync error: ' + (e && e.message)); }
+        try { 
+          // Create a numbered error to track which ones come through
+          const errorNum = i + 1;
+          const originalError = plan[i++];
+          
+          // Wrap the error to add numbering
+          const numberedError = () => {
+            try {
+              originalError();
+            } catch (e) {
+              // Modify the error message to include the number
+              e.message = `Burst Error #${errorNum}: ${e.message}`;
+              throw e;
+            }
+          };
+          
+          numberedError();
+          sent++; 
+          updateCounts(); 
+        }
+        catch (e) { 
+          sent++; 
+          updateCounts(); 
+          log(`Caught sync error #${i}: ` + (e && e.message)); 
+        }
         setTimeout(tick, 120); // gentle pacing
       };
       log('Starting 50-error burst…');

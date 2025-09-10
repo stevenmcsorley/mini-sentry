@@ -2,7 +2,7 @@ from rest_framework.routers import DefaultRouter
 from django.urls import path, include
 from django.http import JsonResponse
 
-from .views import ProjectViewSet, EventViewSet, GroupViewSet, ReleaseViewSet, SymbolicateView, AlertRuleViewSet, SessionIngestView, ReleaseHealthView, ReleaseHealthSeriesView, DeploymentViewSet, EventSeriesView, TopGroupsView, event_stream_view
+from .views import ProjectViewSet, EventViewSet, GroupViewSet, ReleaseViewSet, SymbolicateView, AlertRuleViewSet, SessionIngestView, ReleaseHealthView, ReleaseHealthSeriesView, DeploymentViewSet, EventSeriesView, TopGroupsView
 
 router = DefaultRouter()
 router.register(r"projects", ProjectViewSet, basename="project")

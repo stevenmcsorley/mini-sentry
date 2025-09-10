@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react'
 import type { ChangeEvent } from 'react'
 import type { LogsViewProps } from './LogsView.types'
+import type { Event } from '../../types/app.types'
 import { TimeRangeMenu } from '../TimeRangeMenu'
 import { LevelBadge } from '../LevelBadge'
 import { StatusSummary } from '../StatusSummary'
 import { ToggleSwitch } from '../ToggleSwitch'
 import { parseTokens, removeTokenFromQuery } from '../../utils/search.utils'
 import { fmtDate } from '../../utils/date.utils'
-import { useRealTimeEvents } from '../../hooks/useRealTimeEvents'
+import { useWebSocketEvents } from '../../hooks/useWebSocketEvents'
 import { LogsChart } from './LogsChart'
 import { EventsList } from './EventsList'
 import { SearchFilters } from './SearchFilters'
@@ -40,40 +41,62 @@ export const LogsView = ({
   eventTotal,
   customRange,
   setCustomRange,
+  onNewRealtimeEvent,
   className,
   testId = 'logs-view'
 }: LogsViewProps) => {
   const [legendSel, setLegendSel] = useState({ error: true, warning: true, info: true })
   const [realTimeEnabled, setRealTimeEnabled] = useState(false)
+  const [realtimeEvents, setRealtimeEvents] = useState<Event[]>([])
   
   const tokens = parseTokens(search)
   const visibleEvents = events.filter(e => legendSel[e.level ?? 'error'] !== false)
 
-  // Real-time events handling
-  const handleNewEvent = useCallback((newEvent: any) => {
-    // For now, we'll let the parent component handle data refetching
-    // This ensures the new event gets added to the events list
-    console.log('[LogsView] New real-time event received:', newEvent)
-    
-    // Optional: Show a notification or update indicator
-    // You could dispatch a custom event or call a prop callback here
-  }, [])
-
-  const handleRealTimeError = useCallback((error: Event) => {
-    console.error('[LogsView] Real-time connection error:', error)
-    setRealTimeEnabled(false)
-  }, [])
-
-  const handleConnectionChange = useCallback((connected: boolean) => {
-    console.log('[LogsView] Real-time connection status:', connected)
-  }, [])
-
-  const { isConnected, connectionError, eventCount, lastEventTime } = useRealTimeEvents({
+  // WebSocket real-time events handling
+  const { isConnected, reconnect, disconnect } = useWebSocketEvents({
     projectSlug: selected.slug,
     enabled: realTimeEnabled,
-    onNewEvent: handleNewEvent,
-    onError: handleRealTimeError,
-    onConnectionChange: handleConnectionChange
+    onNewEvent: useCallback((event) => {
+      if (event.type === 'event' && onNewRealtimeEvent) {
+        console.log('[LogsView] New WebSocket event received:', event)
+        console.log('[LogsView] Timestamp received:', event.timestamp, 'Type:', typeof event.timestamp)
+        
+        // Format the WebSocket event data to match our Event type
+        // Handle timestamp as either number or string and convert to ISO string
+        let receivedAt = new Date().toISOString()
+        if (event.timestamp) {
+          const ts = typeof event.timestamp === 'string' ? parseInt(event.timestamp) : event.timestamp
+          receivedAt = new Date(ts).toISOString()
+        }
+        
+        const formattedEvent = {
+          id: event.id ? parseInt(event.id) : Date.now(),
+          message: event.message || '',
+          level: event.level || 'error',
+          received_at: receivedAt,
+          environment: event.environment || '',
+          fingerprint: event.fingerprint || '',
+          project: event.project || selected.slug,
+          user: null,
+          tags: {},
+          contexts: {},
+          extra: {},
+          metadata: {}
+        }
+        
+        onNewRealtimeEvent(formattedEvent)
+        
+        // Also add to local state for chart updates
+        setRealtimeEvents(prev => [formattedEvent, ...prev.slice(0, 99)]) // Keep last 100 real-time events
+      }
+    }, [selected.slug, onNewRealtimeEvent]),
+    onError: useCallback((error: string) => {
+      console.error('[LogsView] WebSocket connection error:', error)
+      // Don't auto-disable on error - let user control it
+    }, []),
+    onConnectionChange: useCallback((connected: boolean) => {
+      console.log('[LogsView] WebSocket connection status:', connected)
+    }, [])
   })
 
   const handleProjectChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
@@ -93,6 +116,10 @@ export const LogsView = ({
 
   const handleRealTimeToggle = useCallback((enabled: boolean) => {
     setRealTimeEnabled(enabled)
+    if (!enabled) {
+      // Clear real-time events when disabling real-time mode
+      setRealtimeEvents([])
+    }
   }, [])
 
   const handleEnvChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
@@ -185,19 +212,10 @@ export const LogsView = ({
               testId="real-time-toggle"
             />
             
-            {connectionError && (
-              <div className="flex items-center gap-1 text-xs text-red-400">
-                <div className="h-2 w-2 rounded-full bg-red-500" />
-                <span title={connectionError}>Connection error</span>
-              </div>
-            )}
-            
-            {realTimeEnabled && isConnected && eventCount > 0 && (
-              <div className="flex items-center gap-1 text-xs text-slate-400">
-                <span>{eventCount} events received</span>
-                {lastEventTime && (
-                  <span>• Last: {new Date(lastEventTime).toLocaleTimeString()}</span>
-                )}
+            {realTimeEnabled && !isConnected && (
+              <div className="flex items-center gap-1 text-xs text-orange-400">
+                <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+                <span>Connecting...</span>
               </div>
             )}
           </div>
@@ -226,6 +244,7 @@ export const LogsView = ({
         setLegendSel={setLegendSel}
         setFilterLevel={setFilterLevel}
         filterEnv={filterEnv}
+        realtimeEvents={realTimeEnabled ? realtimeEvents : []}
       />
 
       {/* Events List */}

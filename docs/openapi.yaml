@@ -824,6 +824,12 @@ paths:
             type: string
             format: date-time
           description: End datetime (overrides range parameter)
+        - in: query
+          name: env
+          schema: 
+            type: string
+          description: Environment filter (e.g. production, staging, development)
+          example: "production"
       responses:
         '200':
           description: Time-series data for dashboard charts

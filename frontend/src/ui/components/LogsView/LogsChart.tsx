@@ -11,7 +11,8 @@ import type {
   TimeSelection, 
   CustomRangeType, 
   LegendSelection,
-  SeriesDataPoint
+  SeriesDataPoint,
+  Event
 } from '../../types/app.types'
 import { normISO, fmtDate } from '../../utils/date.utils'
 import { api } from '../../utils/api.utils'
@@ -29,6 +30,7 @@ interface LogsChartProps {
   setLegendSel: (sel: LegendSelection) => void
   setFilterLevel: (level: string) => void
   filterEnv?: string
+  realtimeEvents?: Event[]
   className?: string
   testId?: string
 }
@@ -44,6 +46,7 @@ export const LogsChart = ({
   setLegendSel,
   setFilterLevel,
   filterEnv,
+  realtimeEvents = [],
   className,
   testId = 'logs-chart'
 }: LogsChartProps) => {
@@ -125,13 +128,67 @@ export const LogsChart = ({
 
   const bucketMs = interval === '1h' ? 60 * 60 * 1000 : 5 * 60 * 1000
 
-  const totals = series.map((r: any) => ({ 
-    bucket: r.bucket, 
-    error: r.error || 0, 
-    warning: r.warning || 0, 
-    info: r.info || 0, 
-    count: (r.error || 0) + (r.warning || 0) + (r.info || 0) 
-  }))
+  // Aggregate real-time events by time bucket
+  const realtimeAggregation = useMemo(() => {
+    const buckets = new Map<string, { error: number; warning: number; info: number }>()
+    
+    realtimeEvents.forEach(event => {
+      const eventTime = new Date(event.received_at).getTime()
+      const bucketTime = Math.floor(eventTime / bucketMs) * bucketMs
+      const bucketKey = new Date(bucketTime).toISOString()
+      
+      if (!buckets.has(bucketKey)) {
+        buckets.set(bucketKey, { error: 0, warning: 0, info: 0 })
+      }
+      
+      const bucket = buckets.get(bucketKey)!
+      const level = event.level || 'error'
+      
+      if (level === 'error') bucket.error++
+      else if (level === 'warning') bucket.warning++
+      else if (level === 'info') bucket.info++
+    })
+    
+    return Array.from(buckets.entries()).map(([bucket, counts]) => ({
+      bucket,
+      ...counts,
+      count: counts.error + counts.warning + counts.info
+    }))
+  }, [realtimeEvents, bucketMs])
+
+  const totals = useMemo(() => {
+    const seriesMap = new Map<string, any>()
+    
+    // Add base series data
+    series.forEach((r: any) => {
+      seriesMap.set(r.bucket, {
+        bucket: r.bucket,
+        error: r.error || 0,
+        warning: r.warning || 0,
+        info: r.info || 0,
+        count: (r.error || 0) + (r.warning || 0) + (r.info || 0)
+      })
+    })
+    
+    // Add real-time aggregated data
+    realtimeAggregation.forEach(realtime => {
+      const existing = seriesMap.get(realtime.bucket)
+      if (existing) {
+        // Merge with existing bucket
+        existing.error += realtime.error
+        existing.warning += realtime.warning
+        existing.info += realtime.info
+        existing.count += realtime.count
+      } else {
+        // Add new bucket
+        seriesMap.set(realtime.bucket, realtime)
+      }
+    })
+    
+    return Array.from(seriesMap.values()).sort((a, b) => 
+      new Date(a.bucket).getTime() - new Date(b.bucket).getTime()
+    )
+  }, [series, realtimeAggregation])
   
   const chartData = useMemo(() => {
     return totals.map(r => ({

@@ -301,5 +301,51 @@ export const handlers = [
         }
       ]
     })
+  }),
+
+  // Dashboard series endpoint
+  http.get('/api/dashboard/series', ({ request }) => {
+    const url = new URL(request.url)
+    const project = url.searchParams.get('project')
+    const env = url.searchParams.get('env')
+    const range = url.searchParams.get('range') || '1h'
+    const interval = url.searchParams.get('interval') || '5m'
+    
+    if (!project) {
+      return HttpResponse.json({ error: 'Project required' }, { status: 400 })
+    }
+
+    // Filter events by environment if specified
+    let filteredEvents = mockEvents
+    if (env) {
+      filteredEvents = mockEvents.filter(event => event.environment === env)
+    }
+
+    // Generate mock time-series data based on filtered events
+    const now = new Date()
+    const mockSeries = []
+    
+    // If no events match the filter, return empty series
+    if (filteredEvents.length === 0) {
+      return HttpResponse.json([])
+    }
+
+    // Generate some sample time buckets with data
+    for (let i = 0; i < 5; i++) {
+      const bucketTime = new Date(now.getTime() - (i * 3600000)) // 1 hour intervals
+      const errorCount = Math.max(0, filteredEvents.filter(e => e.level === 'error').length - i)
+      const warningCount = Math.max(0, filteredEvents.filter(e => e.level === 'warning').length - i)
+      
+      if (errorCount > 0 || warningCount > 0) {
+        mockSeries.unshift({
+          bucket: bucketTime.toISOString().slice(0, 16) + ':00', // Format as YYYY-MM-DD HH:MM:00
+          error: errorCount,
+          warning: warningCount, 
+          info: 0
+        })
+      }
+    }
+
+    return HttpResponse.json(mockSeries)
   })
 ]

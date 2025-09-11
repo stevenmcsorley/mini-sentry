@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here.
 
+## 0.8.0 — 2025-09-10
+
+### Real-time Event Streaming
+- **WebSocket Integration**: Added Django Channels with Redis channel layers for real-time event streaming
+- **Native WebSocket Client**: Custom React hook with robust reconnection logic and ping/pong heartbeat
+- **Real-time UI Updates**: Live event feed in Logs view with toggle switch and connection status indicator
+- **Chart Integration**: Real-time events automatically aggregate into time-series chart with proper bucketing
+- **ASGI Server**: Migrated from WSGI to ASGI (Daphne) for WebSocket support while maintaining HTTP compatibility
+
+### Enhanced Error Tracking
+- **Numbered Error Bursts**: CDN storm app now generates numbered errors for precise delivery tracking
+- **Source Map Updates**: Automated source map upload for symbolicated stack traces on CDN examples
+- **Timestamp Fixes**: Resolved Invalid Date issues in real-time event display with proper ISO string conversion
+
+### UI/UX Improvements  
+- **Toggle Switch Component**: Reusable accessible toggle with "LIVE" indicator for real-time mode
+- **Connection Status**: Visual feedback for WebSocket connection state with automatic reconnection
+- **Event Deduplication**: Smart handling of both static and real-time events without duplicates
+
+### Technical Infrastructure
+- **Container Architecture**: Updated Docker Compose with proper ASGI configuration and dependencies
+- **Memory Management**: Intelligent real-time event caching with automatic cleanup on mode toggle
+- **Error Handling**: Comprehensive error boundaries and graceful fallbacks for WebSocket issues
+
 ## 0.7.0 — 2025-09-06
 
 - Alerts: multiple targets per rule with templates (`AlertTarget`), rule edit, list by group.

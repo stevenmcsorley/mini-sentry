@@ -125,25 +125,28 @@
           const errorNum = i + 1;
           const originalError = plan[i++];
           
-          // Wrap the error to add numbering
-          const numberedError = () => {
-            try {
-              originalError();
-            } catch (e) {
-              // Modify the error message to include the number
-              e.message = `Burst Error #${errorNum}: ${e.message}`;
-              throw e;
-            }
-          };
+          // For async errors, we'll just send a captureMessage with the number
+          if (ms) {
+            ms.captureMessage(`Burst Error #${errorNum}: Triggered async error`, { 
+              level: 'error', 
+              extra: { burstNumber: errorNum, errorType: 'burst' } 
+            });
+          }
           
-          numberedError();
+          // Still trigger the original error for browser console
+          originalError();
           sent++; 
           updateCounts(); 
         }
         catch (e) { 
+          // For sync errors, modify the message and send via captureException
+          if (ms) {
+            e.message = `Burst Error #${errorNum}: ${e.message}`;
+            ms.captureException(e, { extra: { burstNumber: errorNum, errorType: 'burst' } });
+          }
           sent++; 
           updateCounts(); 
-          log(`Caught sync error #${i}: ` + (e && e.message)); 
+          log(`Caught sync error #${errorNum}: ` + (e && e.message)); 
         }
         setTimeout(tick, 120); // gentle pacing
       };

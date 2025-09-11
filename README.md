@@ -157,8 +157,32 @@ flowchart LR
 ## Development
 
 - Web service: `http://localhost:8000`
+- Frontend UI: `http://localhost:5173`
 - Celery worker/beat run in their own containers.
 - Code changes auto-reload if you restart the container or mount volumes (already configured).
+
+## Testing & Quality Assurance
+
+### Real-time Event Testing
+- **CDN Storm App**: Use the Error Storm demo at `http://localhost:8000` to test real-time event streaming
+- **Numbered Bursts**: Click "🔥 Fire 50 errors" to send numbered events for delivery tracking
+- **Real-time Toggle**: Enable "Real-time" mode in the Logs view to see live event streaming
+- **Connection Monitoring**: Visual indicators show WebSocket connection status and auto-reconnection
+
+### Error Simulation Tools
+- **Manual Events**: Use captureMessage(), captureException(), and session tracking buttons
+- **Async Error Testing**: Various async error types (setTimeout, Promise, fetch) for comprehensive coverage
+- **Source Map Testing**: Uploaded source maps enable symbolicated stack traces for debugging
+
+### Performance Testing
+- **Burst Mode**: 50 errors with 120ms spacing to test rapid event processing
+- **Slow Drip**: 1 error per second for sustained load testing
+- **Memory Management**: Real-time events are cached with automatic cleanup (100 event limit)
+
+### UI/UX Validation
+- **Chart Updates**: Verify real-time events appear in both events table and time-series chart
+- **Timestamp Accuracy**: All events display correct timestamps in local timezone
+- **Filter Integration**: Real-time events respect level, environment, and search filters
 
 ## Extras: Kafka + ClickHouse + Snuba-like
 

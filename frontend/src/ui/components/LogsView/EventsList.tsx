@@ -157,7 +157,7 @@ export const EventsList = ({
                         <div className="mb-1 flex items-center justify-between">
                           <div className="text-xs font-semibold text-slate-400">stack</div>
                           {(eventDetails[e.id] as any)._symSource ? (
-                            <span className="rounded-full bg-slate-800/60 px-2 py-0.5 text-[10px] text-slate-300">
+                            <span className="rounded-full bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 text-[10px] font-medium text-purple-300">
                               symbolicated: {(eventDetails[e.id] as any)._symSource}
                             </span>
                           ) : null}

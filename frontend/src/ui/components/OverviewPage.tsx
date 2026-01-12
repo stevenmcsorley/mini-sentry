@@ -77,6 +77,7 @@ export function OverviewPage({
 }: OverviewPageProps) {
   const [assignModal, setAssignModal] = useState<{groupId: number, currentAssignee: string} | null>(null)
   const [commentModal, setCommentModal] = useState<{groupId: number} | null>(null)
+  const [selectedRelease, setSelectedRelease] = useState<number | null>(null)
 
   return (
     <div data-testid="overview-page" className="space-y-6">
@@ -119,70 +120,115 @@ export function OverviewPage({
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Release Management */}
-        <section data-testid="releases-section" className="rounded-xl border border-slate-800/60 p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">Release Management</h3>
-            <span className="rounded-full bg-blue-500/20 px-2 py-1 text-xs text-blue-300">
-              {releases.length} releases
+        <section data-testid="releases-section" className="rounded-xl border border-slate-800/60 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-white">Release Management</h3>
+            <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-medium text-blue-300">
+              {releases.length}
             </span>
           </div>
-          <p className="mb-4 text-sm text-slate-400">
-            Manage application versions, upload source maps, and track deployment artifacts.
-          </p>
-          <div data-testid="release-form">
+
+          {/* Create Release Form - single row */}
+          <div className="mb-4" data-testid="release-form">
             <ReleaseForm onCreate={createRelease} />
           </div>
-          <div className="mt-4 max-h-64 overflow-y-auto" data-testid="releases-table">
-            <table className="w-full text-sm">
-              <thead className="text-left text-slate-400">
-                <tr><th>Version</th><th>Env</th><th>Created</th><th>Artifact</th></tr>
-              </thead>
-              <tbody>
-                {releases.map(r => (
-                  <tr key={r.id} className="border-t border-slate-800/60" data-testid={`release-${r.id}`}>
-                    <td className="py-2">{r.version}</td>
-                    <td>{r.environment}</td>
-                    <td>{r.created_at}</td>
-                    <td><ArtifactForm releaseId={r.id} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+
+          {/* Releases List */}
+          {releases.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-2">No releases yet</p>
+          ) : (
+            <div className="space-y-1.5 max-h-48 overflow-y-auto" data-testid="releases-table">
+              {releases.map(r => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/40 hover:bg-slate-800/60 transition-colors"
+                  data-testid={`release-${r.id}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm text-white">{r.version}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs ${
+                      r.environment === 'production'
+                        ? 'bg-green-500/20 text-green-300'
+                        : r.environment === 'staging'
+                        ? 'bg-yellow-500/20 text-yellow-300'
+                        : 'bg-slate-500/20 text-slate-300'
+                    }`}>
+                      {r.environment}
+                    </span>
+                    <span className="text-xs text-slate-500">{r.created_at}</span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedRelease(selectedRelease === r.id ? null : r.id)}
+                    className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
+                  >
+                    {selectedRelease === r.id ? 'Hide' : 'Artifacts'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Artifact Upload */}
+          {selectedRelease && (
+            <div className="mt-3 pt-3 border-t border-slate-700/50">
+              <ArtifactForm releaseId={selectedRelease} onUpload={() => setSelectedRelease(null)} />
+            </div>
+          )}
         </section>
 
         {/* Deployment Management */}
-        <section data-testid="deployments-section" className="rounded-xl border border-slate-800/60 p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">Deployment Tracking</h3>
-            <span className="rounded-full bg-green-500/20 px-2 py-1 text-xs text-green-300">
-              {deploys.length} deployments
+        <section data-testid="deployments-section" className="rounded-xl border border-slate-800/60 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-white">Deployment Tracking</h3>
+            <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-300">
+              {deploys.length}
             </span>
           </div>
-          <p className="mb-4 text-sm text-slate-400">
-            Track application deployments across environments with URLs and timestamps.
-          </p>
-          <div data-testid="deployment-form">
+
+          {/* Create Deployment Form - single row */}
+          <div className="mb-4" data-testid="deployment-form">
             <DeploymentForm onCreate={createDeployment} />
           </div>
-          <div className="mt-4 max-h-64 overflow-y-auto" data-testid="deployments-table">
-            <table className="w-full text-sm">
-              <thead className="text-left text-slate-400">
-                <tr><th>Name</th><th>Env</th><th>Started</th><th>Finished</th><th>URL</th></tr>
-              </thead>
-              <tbody>
-                {deploys.map(d => (
-                  <tr key={d.id} className="border-t border-slate-800/60" data-testid={`deployment-${d.id}`}>
-                    <td className="py-2">{d.name}</td>
-                    <td>{d.environment}</td>
-                    <td>{d.date_started}</td>
-                    <td>{d.date_finished || ''}</td>
-                    <td className="truncate max-w-32">{d.url}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+
+          {/* Deployments List */}
+          {deploys.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-2">No deployments yet</p>
+          ) : (
+            <div className="space-y-1.5 max-h-48 overflow-y-auto" data-testid="deployments-table">
+              {deploys.map(d => (
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/40 hover:bg-slate-800/60 transition-colors"
+                  data-testid={`deployment-${d.id}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-white">{d.name}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs ${
+                      d.environment === 'production'
+                        ? 'bg-green-500/20 text-green-300'
+                        : d.environment === 'staging'
+                        ? 'bg-yellow-500/20 text-yellow-300'
+                        : 'bg-slate-500/20 text-slate-300'
+                    }`}>
+                      {d.environment}
+                    </span>
+                    <span className="text-xs text-slate-500">{d.date_started}</span>
+                  </div>
+                  {d.url && (
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-400 hover:text-blue-300 truncate max-w-[120px]"
+                      title={d.url}
+                    >
+                      {d.url.replace(/^https?:\/\//, '')}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Release Health */}

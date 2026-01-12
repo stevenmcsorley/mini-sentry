@@ -50,8 +50,11 @@ export type AlertRule = {
   name: string
   level: string
   threshold_count: number
+  threshold_window_minutes?: number
+  notify_interval_minutes?: number
   target_type: 'email' | 'webhook'
   target_value: string
+  active: boolean
 }
 
 export type Deployment = {
@@ -68,7 +71,7 @@ export type TimeRange = '1h' | '24h' | '7d' | '14d' | '30d' | '90d' | '1y'
 
 export type TimeInterval = '1m' | '5m' | '15m' | '30m' | '1h' | '24h' | '7d' | '30d'
 
-export type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects'
+export type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects' | 'releases' | 'alerts'
 
 export type CustomRangeType = {
   value: number

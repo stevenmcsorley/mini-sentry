@@ -65,7 +65,7 @@ export const LogsChart = ({
   useEffect(() => {
     const ib = (i: string) => (i === '5m' || i === '1h') ? i : (i === '1m' ? '5m' : (i === '15m' ? '5m' : (i === '30m' ? '1h' : '1h')))
     
-    let apiUrl = `/api/dashboard/series/?project=${selected.slug}&interval=${ib(interval)}&backend=ch`
+    let apiUrl = `/api/dashboard/series/?project=${selected.slug}&interval=${ib(interval)}&backend=pg`
     
     if (customRange && customRange.from && customRange.to) {
       // Use custom range with from/to parameters
@@ -319,19 +319,10 @@ export const LogsChart = ({
                   return lines.join('<br/>')
                 }
               },
-              xAxis: { 
-                type: 'time', 
-                axisLabel: { color: '#94a3b8' }, 
-                axisLine: { lineStyle: { color: '#64748b' } },
-                ...(timeSel ? {} : {
-                  min: new Date(Date.now() - (customRange ? 
-                    (customRange.unit === 'm' ? customRange.value * 60 * 1000 :
-                     customRange.unit === 'h' ? customRange.value * 60 * 60 * 1000 :
-                     customRange.unit === 'd' ? customRange.value * 24 * 60 * 60 * 1000 :
-                     customRange.unit === 'w' ? customRange.value * 7 * 24 * 60 * 60 * 1000 : 86400000)
-                    : (range === '1h' ? 60 : range === '24h' ? 1440 : range === '7d' ? 10080 : range === '14d' ? 20160 : range === '30d' ? 43200 : range === '90d' ? 129600 : 525600) * 60 * 1000)).getTime(),
-                  max: new Date().getTime()
-                })
+              xAxis: {
+                type: 'time',
+                axisLabel: { color: '#94a3b8' },
+                axisLine: { lineStyle: { color: '#64748b' } }
               },
               yAxis: { 
                 type: 'value', 

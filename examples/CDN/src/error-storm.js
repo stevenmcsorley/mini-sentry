@@ -7,6 +7,7 @@
 
     let ms = null; // Mini Sentry client
     let dripTimer = null;
+    let rapidTimer = null;
     let sent = 0;
 
     function setStatus(txt) { el('status').textContent = txt; }
@@ -120,10 +121,10 @@
       let i = 0;
       const tick = () => {
         if (i >= plan.length) { log('🔥 Burst complete'); return; }
+        // Create a numbered error to track which ones come through
+        const errorNum = i + 1;
+        const originalError = plan[i++];
         try { 
-          // Create a numbered error to track which ones come through
-          const errorNum = i + 1;
-          const originalError = plan[i++];
           
           // For async errors, we'll just send a captureMessage with the number
           if (ms) {
@@ -152,6 +153,63 @@
       };
       log('Starting 50-error burst…');
       tick();
+    });
+
+    function stopRapidFire() {
+      if (rapidTimer) {
+        clearInterval(rapidTimer);
+        rapidTimer = null;
+      }
+      const btn = el('rapidBtn');
+      if (btn) btn.disabled = false;
+      log('Rapid fire stopped');
+    }
+
+    // Rapid fire: configurable errors as fast as possible without freezing the page
+    el('rapidBtn').addEventListener('click', () => {
+      if (!ms) return alert('Init Mini Sentry first');
+      if (rapidTimer) return;
+      const btn = el('rapidBtn');
+      btn.disabled = true;
+      const count = Math.max(10, Math.min(2000, parseInt(el('rapidCount').value, 10) || 200));
+      const intervalMs = Math.max(1, Math.min(200, parseInt(el('rapidInterval').value, 10) || 10));
+      const plan = makePlan(count);
+      let i = 0;
+      log(`Rapid fire started (${count} @ ${intervalMs}ms)…`);
+      rapidTimer = setInterval(() => {
+        if (i >= plan.length) {
+          clearInterval(rapidTimer);
+          rapidTimer = null;
+          btn.disabled = false;
+          log('⚡ Rapid fire complete');
+          return;
+        }
+        const errorNum = i + 1;
+        const originalError = plan[i++];
+        try {
+          if (ms) {
+            ms.captureMessage(`Rapid Error #${errorNum}: Triggered async error`, {
+              level: 'error',
+              extra: { burstNumber: errorNum, errorType: 'rapid' }
+            });
+          }
+          originalError();
+          sent++;
+          updateCounts();
+        } catch (e) {
+          if (ms) {
+            e.message = `Rapid Error #${errorNum}: ${e.message}`;
+            ms.captureException(e, { extra: { burstNumber: errorNum, errorType: 'rapid' } });
+          }
+          sent++;
+          updateCounts();
+          log(`Caught sync error #${errorNum}: ` + (e && e.message));
+        }
+      }, intervalMs);
+    });
+
+    el('rapidStopBtn').addEventListener('click', () => {
+      stopRapidFire();
     });
 
     // Slow-drip (1 per second)

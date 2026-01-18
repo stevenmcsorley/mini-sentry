@@ -4,6 +4,6 @@
   },
     "scripts": {
     "build": "esbuild src/error-storm.js --bundle --minify --sourcemap --platform=browser --format=iife --outfile=dist/error-storm.js",
-    "release": "npm run build && PROJECT_SLUG=test-cdn RELEASE_VERSION=demo-1.0.0 ENVIRONMENT=demo node upload_sourcemap.mjs"
+    "release": "npm run build && PROJECT_SLUG=test-cdn RELEASE_VERSION=demo-1.0.4 ENVIRONMENT=demo node upload_sourcemap.mjs"
   }
 }

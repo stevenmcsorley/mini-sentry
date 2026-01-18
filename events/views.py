@@ -64,10 +64,18 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
         to_param = self.request.query_params.get("to")
         if from_param:
             dt = parse_datetime(from_param)
+            if not dt and from_param.endswith("Z"):
+                dt = parse_datetime(from_param[:-1] + "+00:00")
+            if dt and timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
             if dt:
                 qs = qs.filter(received_at__gte=dt)
         if to_param:
             dt = parse_datetime(to_param)
+            if not dt and to_param.endswith("Z"):
+                dt = parse_datetime(to_param[:-1] + "+00:00")
+            if dt and timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
             if dt:
                 qs = qs.filter(received_at__lte=dt)
 

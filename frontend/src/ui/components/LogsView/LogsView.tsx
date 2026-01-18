@@ -50,7 +50,15 @@ export const LogsView = ({
   const [realtimeEvents, setRealtimeEvents] = useState<Event[]>([])
   
   const tokens = parseTokens(search)
-  const visibleEvents = events.filter(e => legendSel[e.level ?? 'error'] !== false)
+  const timeFilteredEvents = timeSel
+    ? events.filter(e => {
+        const ts = new Date(e.received_at).getTime()
+        const from = new Date(timeSel.from).getTime()
+        const to = new Date(timeSel.to).getTime()
+        return !Number.isNaN(ts) && ts >= from && ts <= to
+      })
+    : events
+  const visibleEvents = timeFilteredEvents.filter(e => legendSel[e.level ?? 'error'] !== false)
 
   // WebSocket real-time events handling
   const { isConnected, reconnect, disconnect } = useWebSocketEvents({

@@ -80,7 +80,7 @@ export const useProjectData = (params: ProjectDataHookParams) => {
     try {
       // Calculate time parameters
       let timeParams = timeSel
-      if (!timeParams && (customRange || range !== '24h')) {
+      if (!timeParams) {
         const now = Date.now()
         let minutes = 0
         

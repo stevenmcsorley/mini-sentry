@@ -59,9 +59,17 @@
       <h2>Error Generators</h2>
       <div class="row">
         <button id="burstBtn">🔥 Fire 50 errors</button>
+        <button id="rapidBtn" class="destructive">⚡ Rapid fire (200 fast)</button>
+        <button id="rapidStopBtn" class="secondary">⏹️ Stop rapid</button>
         <button id="dripBtn" class="secondary">💧 Start slow-drip (1/sec)</button>
         <button id="stopBtn" class="secondary">⏹️ Stop drip</button>
         <button id="throwBtn" class="destructive">💥 Throw now (sync)</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label for="rapidCount">Rapid count</label>
+        <input id="rapidCount" type="number" min="10" max="2000" value="200" style="width:100px" />
+        <label for="rapidInterval">Interval (ms)</label>
+        <input id="rapidInterval" type="number" min="1" max="200" value="10" style="width:100px" />
       </div>
       <p id="counts" style="margin:8px 0 0"></p>
     </section>
@@ -87,6 +95,6 @@
   <!-- Shim process for React/CJS environments referenced by some bundles -->
   <script>window.process = window.process || { env: { NODE_ENV: 'production' } };</script>
   <script src="https://cdn.jsdelivr.net/npm/mini-sentry-client/dist/index.global.js"></script>
-    <script src="/dist/error-storm.js"></script>
+    <script src="/dist/error-storm.js?v=2"></script>
 </body>
 </html>

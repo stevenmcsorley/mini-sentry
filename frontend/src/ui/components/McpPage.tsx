@@ -15,6 +15,7 @@ const TOOL_GROUPS: Array<[string, string]> = [
   ['Events', 'list_events · get_event'],
   ['Stats', 'top_issues · event_series'],
   ['Releases & alerts', 'list_releases · list_alert_rules'],
+  ['Integrations', 'list_integrations · create_github_issue · create_ossicone_ticket · list_issue_links'],
   ['Workspace', 'get_workspace · list_workspaces'],
   ['Testing', 'send_test_event'],
 ]

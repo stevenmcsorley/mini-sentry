@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LevelBadge } from './LevelBadge'
 import { AlertRuleForm } from './forms/AlertRuleForm'
 import { DeploymentForm } from './forms/DeploymentForm'
@@ -78,6 +78,46 @@ export function OverviewPage({
   const [assignModal, setAssignModal] = useState<{groupId: number, currentAssignee: string} | null>(null)
   const [commentModal, setCommentModal] = useState<{groupId: number} | null>(null)
   const [selectedRelease, setSelectedRelease] = useState<number | null>(null)
+
+  // Issue-tracker integrations (configure under the Integrations tab).
+  const [providers, setProviders] = useState<string[]>([])
+  const [issueModal, setIssueModal] = useState<{
+    group: Group
+    links: Array<{id: number; provider: string; url: string; external_key: string}>
+    busy: string | null
+    error: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    api('/api/integrations/')
+      .then((d: any) => setProviders((d.integrations || []).map((i: any) => i.provider)))
+      .catch(() => setProviders([]))
+  }, [])
+
+  const openIssueModal = async (group: Group) => {
+    setIssueModal({ group, links: [], busy: null, error: null })
+    const links = await api(`/api/groups/${group.id}/links/`).catch(() => [])
+    setIssueModal(m => (m && m.group.id === group.id ? { ...m, links } : m))
+  }
+
+  const createIssue = async (provider: string) => {
+    setIssueModal(m => (m ? { ...m, busy: provider, error: null } : m))
+    try {
+      const group = issueModal!.group
+      await api(`/api/groups/${group.id}/create-issue/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      })
+      const links = await api(`/api/groups/${group.id}/links/`).catch(() => [])
+      setIssueModal(m => (m ? { ...m, links, busy: null } : m))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create issue'
+      setIssueModal(m => (m ? { ...m, busy: null, error: msg } : m))
+    }
+  }
+
+  const PROVIDER_LABEL: Record<string, string> = { github: 'GitHub issue', ossicone: 'Ossicone ticket' }
 
   return (
     <div data-testid="overview-page" className="space-y-6">
@@ -511,12 +551,21 @@ export function OverviewPage({
                       Comment
                     </button>
                     {rules.length > 0 ? (
-                      <button 
+                      <button
                         data-testid={`snooze-group-${g.id}`}
-                        className="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800/60" 
+                        className="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800/60"
                         onClick={() => snoozeGroup(g.id, 60)}
                       >
                         Snooze
+                      </button>
+                    ) : null}
+                    {providers.length > 0 ? (
+                      <button
+                        data-testid={`issue-group-${g.id}`}
+                        className="rounded border border-emerald-700/60 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-900/30"
+                        onClick={() => openIssueModal(g)}
+                      >
+                        Create Issue
                       </button>
                     ) : null}
                   </td>
@@ -582,6 +631,60 @@ export function OverviewPage({
                   Assign
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Issue Modal */}
+      {issueModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-testid="issue-modal">
+          <div className="w-[28rem] rounded-xl border border-slate-700 bg-slate-800 p-6">
+            <h3 className="mb-1 text-lg font-semibold text-white">Create Issue</h3>
+            <p className="mb-4 truncate text-xs text-slate-400" title={issueModal.group.title}>
+              from “{issueModal.group.title}”
+            </p>
+
+            {issueModal.links.length > 0 && (
+              <div className="mb-4 rounded-lg border border-slate-700/60 bg-slate-900/40 p-3">
+                <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">Linked issues</div>
+                <ul className="space-y-1 text-sm">
+                  {issueModal.links.map(l => (
+                    <li key={l.id}>
+                      <a href={l.url} target="_blank" rel="noreferrer" className="text-emerald-400 hover:text-emerald-300">
+                        {PROVIDER_LABEL[l.provider] || l.provider} {l.external_key}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Open a new issue in</div>
+              {providers.map(p => (
+                <button
+                  key={p}
+                  data-testid={`create-issue-${p}`}
+                  disabled={issueModal.busy !== null}
+                  onClick={() => createIssue(p)}
+                  className="flex w-full items-center justify-between rounded-md border border-slate-600 px-3 py-2 text-sm text-slate-100 hover:bg-slate-700 disabled:opacity-50"
+                >
+                  <span>{PROVIDER_LABEL[p] || p}</span>
+                  <span className="text-xs text-slate-400">{issueModal.busy === p ? 'Creating…' : '→'}</span>
+                </button>
+              ))}
+            </div>
+
+            {issueModal.error && <p className="mt-3 text-sm text-red-400" data-testid="issue-error">{issueModal.error}</p>}
+
+            <div className="mt-5 flex justify-end">
+              <button
+                className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-700"
+                onClick={() => setIssueModal(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -57,6 +57,28 @@ class ApiToken(models.Model):
         return super().save(*args, **kwargs)
 
 
+class Integration(models.Model):
+    """Per-workspace config for an external issue tracker (see events/integrations.py)."""
+    PROVIDERS = (("github", "github"), ("ossicone", "ossicone"))
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="integrations")
+    provider = models.CharField(max_length=32, choices=PROVIDERS)
+    config = models.JSONField(default=dict)  # e.g. {owner,repo,token} or {url,token,project_id}
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ("workspace", "provider")
+
+
+class IssueLink(models.Model):
+    """A Skylark error group linked to an external issue/ticket."""
+    group = models.ForeignKey("Group", on_delete=models.CASCADE, related_name="issue_links")
+    provider = models.CharField(max_length=32)
+    url = models.URLField(max_length=500)
+    external_id = models.CharField(max_length=64, blank=True)
+    external_key = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+
 class Project(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(unique=True)

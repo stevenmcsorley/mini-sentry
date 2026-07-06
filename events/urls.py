@@ -11,6 +11,9 @@ from .workspace_views import (
     InvitesView, InviteDetailView, InviteInspectView, InviteAcceptView,
 )
 from .token_views import ApiTokensView, ApiTokenDetailView
+from .integration_views import (
+    IntegrationsView, IntegrationDetailView, GroupCreateIssueView, GroupLinksView,
+)
 
 router = DefaultRouter()
 router.register(r"projects", ProjectViewSet, basename="project")
@@ -38,6 +41,10 @@ urlpatterns = [
     path("invites/<str:token>/accept/", InviteAcceptView.as_view()),
     path("tokens/", ApiTokensView.as_view()),
     path("tokens/<int:token_id>/", ApiTokenDetailView.as_view()),
+    path("integrations/", IntegrationsView.as_view()),
+    path("integrations/<str:provider>/", IntegrationDetailView.as_view()),
+    path("groups/<int:group_id>/create-issue/", GroupCreateIssueView.as_view()),
+    path("groups/<int:group_id>/links/", GroupLinksView.as_view()),
     path("symbolicate/", SymbolicateView.as_view()),
     path("sessions/ingest/token/<str:token>/", SessionIngestView.as_view()),
     path("releases/health/", ReleaseHealthView.as_view()),

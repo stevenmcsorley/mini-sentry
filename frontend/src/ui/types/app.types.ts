@@ -71,7 +71,7 @@ export type TimeRange = '1h' | '24h' | '7d' | '14d' | '30d' | '90d' | '1y'
 
 export type TimeInterval = '1m' | '5m' | '15m' | '30m' | '1h' | '24h' | '7d' | '30d'
 
-export type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects' | 'releases' | 'alerts' | 'mcp'
+export type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects' | 'releases' | 'alerts' | 'integrations' | 'mcp'
 
 export type CustomRangeType = {
   value: number

@@ -287,5 +287,40 @@ server.registerTool(
   })
 )
 
+// ---------- Integrations (issue trackers) ----------
+
+server.registerTool(
+  'list_integrations',
+  { description: 'Configured issue-tracker integrations for this workspace (GitHub / Ossicone) and the fields each adapter needs.' },
+  run(async () => api('/integrations/'))
+)
+
+server.registerTool(
+  'create_github_issue',
+  {
+    description: 'Open a GitHub issue from a Skylark error group (requires a configured github integration).',
+    inputSchema: { group_id: z.number() },
+  },
+  run(async ({ group_id }) => api(`/groups/${group_id}/create-issue/`, { method: 'POST', body: { provider: 'github' } }))
+)
+
+server.registerTool(
+  'create_ossicone_ticket',
+  {
+    description: 'File an Ossicone bug ticket from a Skylark error group (requires a configured ossicone integration).',
+    inputSchema: { group_id: z.number() },
+  },
+  run(async ({ group_id }) => api(`/groups/${group_id}/create-issue/`, { method: 'POST', body: { provider: 'ossicone' } }))
+)
+
+server.registerTool(
+  'list_issue_links',
+  {
+    description: 'External issues/tickets linked to a Skylark error group.',
+    inputSchema: { group_id: z.number() },
+  },
+  run(async ({ group_id }) => api(`/groups/${group_id}/links/`))
+)
+
 const transport = new StdioServerTransport()
 await server.connect(transport)

@@ -17,6 +17,7 @@ import { AlertsPage } from './components/AlertsPage'
 import { ToastProvider } from './components/ui'
 import { NoProjectSelected } from './components/ui'
 import { McpPage } from './components/McpPage'
+import { IntegrationsPage } from './components/IntegrationsPage'
 import { WorkspaceMenu } from './auth/WorkspaceMenu'
 
 // Hooks
@@ -213,6 +214,8 @@ export const App = () => {
                   )
                 ) : routing.activeTab === 'mcp' ? (
                   <McpPage />
+                ) : routing.activeTab === 'integrations' ? (
+                  <IntegrationsPage />
                 ) : (
                   routing.selected ? (
                     <OverviewPage

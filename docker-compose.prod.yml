@@ -43,6 +43,18 @@ services:
       CSRF_TRUSTED_ORIGINS: ${PUBLIC_ORIGIN:-https://skylark.halfagiraf.com}
       OPEN_SIGNUP: ${OPEN_SIGNUP:-true}
       RATE_LIMIT_EVENTS_PER_MINUTE: "5000"
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-https://skylark.halfagiraf.com}
+      # Alert delivery (SMTP + first-seen/regression). Defaults keep it silent (console).
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-localhost}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-0}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-alerts@example.test}
+      SKYLARK_ALERT_EMAIL: ${SKYLARK_ALERT_EMAIL:-}
+      SKYLARK_ALERT_WEBHOOK: ${SKYLARK_ALERT_WEBHOOK:-}
       # KAFKA_ENABLED unset -> Postgres-only ingest + dashboards
     depends_on:
       postgres:
@@ -64,6 +76,17 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-skylark.halfagiraf.com,localhost,127.0.0.1}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-https://skylark.halfagiraf.com}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-localhost}
+      EMAIL_PORT: ${EMAIL_PORT:-25}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-0}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-alerts@example.test}
+      SKYLARK_ALERT_EMAIL: ${SKYLARK_ALERT_EMAIL:-}
+      SKYLARK_ALERT_WEBHOOK: ${SKYLARK_ALERT_WEBHOOK:-}
     depends_on:
       postgres:
         condition: service_healthy

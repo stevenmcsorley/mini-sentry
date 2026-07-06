@@ -401,6 +401,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             project=project, fingerprint=fingerprint,
             defaults={"title": title, "level": level, "first_seen": now, "last_seen": now, "count": 1},
         )
+        regressed = False
         if not created:
             # Check if group was resolved - if so, reopen it (Sentry regression logic)
             updates = {
@@ -408,16 +409,25 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 "level": level,
                 "count": F("count") + 1,
             }
-            
+
             # Handle status transitions for new events (Sentry-style logic)
             if group.status == Group.STATUS_RESOLVED:
                 # Resolved issues reopen on new events (regression)
                 updates["status"] = Group.STATUS_UNRESOLVED
                 updates["resolved_at"] = None
+                regressed = True
             # Note: Ignored issues stay ignored (they're meant to be muted)
-                
+
             Group.objects.filter(id=group.id).update(**updates)
             group.refresh_from_db(fields=["count", "last_seen", "level", "status", "resolved_at"])
+
+        # First-seen / regression signals — the alerts that matter, no rule needed.
+        if created or regressed:
+            try:
+                from .alerts import notify_group_signal
+                notify_group_signal(group, "new" if created else "regression")
+            except Exception:
+                pass
         return group
 
 

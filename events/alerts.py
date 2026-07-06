@@ -34,6 +34,50 @@ def _should_trigger(rule: AlertRule, group: Group, event: Event) -> bool:
     return True
 
 
+def _estate_recipients() -> list:
+    """Global first-seen/regression recipients (comma-separated env), estate-wide."""
+    raw = os.environ.get("SKYLARK_ALERT_EMAIL", "").strip()
+    return [e.strip() for e in raw.split(",") if e.strip()]
+
+
+def notify_group_signal(group: Group, reason: str):
+    """Fire a first-seen ("new") or "regression" alert without needing a per-project
+    rule — the signals that actually matter. Best-effort; never blocks ingest hard."""
+    recipients = _estate_recipients()
+    webhook = os.environ.get("SKYLARK_ALERT_WEBHOOK", "").strip()
+    if not recipients and not webhook:
+        return
+    label = "New issue" if reason == "new" else "Regression"
+    base = os.environ.get("PUBLIC_ORIGIN", "https://skylark.halfagiraf.com").rstrip("/")
+    payload = {
+        "reason": reason,
+        "project": group.project.slug,
+        "group_id": group.id,
+        "title": group.title,
+        "level": group.level,
+        "count": group.count,
+        "url": f"{base}/",
+    }
+    subject = f"[Skylark] {label}: {group.project.slug} — {group.title}"[:200]
+    body = (
+        f"{label} in {group.project.slug}\n\n"
+        f"{group.title}\n"
+        f"Level: {group.level}  ·  Seen: {group.count}×\n\n"
+        f"Open Skylark: {base}/\n"
+    )
+    if recipients:
+        from_email = os.environ.get("EMAIL_FROM", "alerts@example.test")
+        try:
+            send_mail(subject, body, from_email, recipients, fail_silently=True)
+        except Exception:
+            pass
+    if webhook:
+        try:
+            requests.post(webhook, json=payload, timeout=3)
+        except Exception:
+            pass
+
+
 def _build_payload(event: Event) -> dict:
     return {
         "project": event.project.slug,
@@ -49,7 +93,7 @@ def _build_payload(event: Event) -> dict:
 def trigger_alert(rule: AlertRule, event: Event):
     payload = _build_payload(event)
     # default subject/body
-    default_subject = f"[Mini Sentry] {payload['project']} - {payload['group_title']}"
+    default_subject = f"[Skylark] {payload['project']} - {payload['group_title']}"
     default_body = (
         f"Project: {payload['project']}\n"
         f"Group: {payload['group_id']} - {payload['group_title']}\n"

@@ -1,4 +1,4 @@
-// Core business domain types for Mini Sentry UI
+// Core business domain types for Skylark UI
 
 export interface Project {
   id: number

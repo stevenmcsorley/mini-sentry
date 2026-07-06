@@ -1,0 +1,20 @@
+{
+  "name": "skylark-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing the Skylark error-monitoring platform to AI agents",
+  "type": "module",
+  "bin": {
+    "skylark-mcp": "index.js"
+  },
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

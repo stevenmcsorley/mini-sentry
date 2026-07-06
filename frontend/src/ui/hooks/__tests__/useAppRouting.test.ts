@@ -140,7 +140,7 @@ describe('useAppRouting', () => {
       expect(result.current.selected).toEqual(mockProject)
     })
 
-    expect(mockLocalStorage.getItem).toHaveBeenCalledWith('mini-sentry-last-project')
+    expect(mockLocalStorage.getItem).toHaveBeenCalledWith('skylark-last-project')
   })
 
   it('should select first project when no URL or localStorage', async () => {
@@ -187,7 +187,7 @@ describe('useAppRouting', () => {
     })
 
     expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-      'mini-sentry-last-project',
+      'skylark-last-project',
       expect.any(String)
     )
   })

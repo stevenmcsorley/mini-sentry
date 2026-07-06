@@ -1,6 +1,7 @@
 // Base API service with common functionality
 
 import { APIError } from '../../types/api.types'
+import { getToken, clearToken, getWorkspaceId } from '../auth'
 
 export class APIServiceError extends Error {
   constructor(
@@ -19,23 +20,34 @@ export class BaseAPIService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = path.startsWith('http') ? path : `${path}`
-    
+
+    const { headers: optHeaders, ...restOptions } = options
+    const token = getToken()
+    const workspaceId = getWorkspaceId()
     const config: RequestInit = {
+      ...restOptions,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(workspaceId ? { 'X-Workspace-Id': workspaceId } : {}),
+        ...optHeaders,
       },
-      ...options,
     }
 
     try {
       const response = await fetch(url, config)
-      
+
       if (!response.ok) {
+        // Any 401 means the session is gone — drop back to the login screen.
+        if (response.status === 401) {
+          clearToken()
+          window.dispatchEvent(new Event('skylark:unauthorized'))
+        }
+
         const errorData: APIError = await response.json().catch(() => ({
           error: `HTTP ${response.status}: ${response.statusText}`
         }))
-        
+
         throw new APIServiceError(
           errorData.error || 'API request failed',
           response.status,

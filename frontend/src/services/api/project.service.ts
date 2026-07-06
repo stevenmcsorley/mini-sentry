@@ -33,7 +33,7 @@ export class ProjectService extends BaseAPIService {
     return this.patch<APIProject>(`${this.BASE_URL}/${id}/`, data)
   }
 
-  static async delete(id: number): Promise<void> {
+  static async remove(id: number): Promise<void> {
     await this.delete<void>(`${this.BASE_URL}/${id}/`)
   }
 

@@ -1,11 +1,66 @@
 import secrets
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+
+class Workspace(models.Model):
+    """A tenant boundary: owns projects and has members."""
+    name = models.CharField(max_length=200)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return self.name
+
+
+class WorkspaceMember(models.Model):
+    ROLE_CHOICES = (("owner", "owner"), ("admin", "admin"), ("member", "member"))
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="members")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="workspace_memberships")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ("workspace", "user")
+
+
+class WorkspaceInvite(models.Model):
+    ROLE_CHOICES = (("admin", "admin"), ("member", "member"))
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="invites")
+    email = models.EmailField()
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
+    token = models.CharField(max_length=64, unique=True, blank=True)
+    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    expires_at = models.DateTimeField(null=True, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(24)
+        return super().save(*args, **kwargs)
+
+
+class ApiToken(models.Model):
+    """A scoped API token for programmatic access (MCP / CI), bound to a workspace."""
+    token = models.CharField(max_length=64, unique=True, blank=True)
+    name = models.CharField(max_length=200)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="api_tokens")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        return super().save(*args, **kwargs)
 
 
 class Project(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(unique=True)
+    workspace = models.ForeignKey(Workspace, null=True, blank=True, on_delete=models.CASCADE, related_name="projects")
     created_at = models.DateTimeField(default=timezone.now)
     ingest_token = models.CharField(max_length=64, unique=True, blank=True)
 

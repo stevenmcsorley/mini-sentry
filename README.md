@@ -1,10 +1,10 @@
-# Mini Sentry-like Stack (Dockerized)
+# Skylark-like Stack (Dockerized)
 
-![Mini Sentry UI](screenshot1.png)
+![Skylark UI](screenshot1.png)
 
 ## Dashboard Templates
 
-Mini Sentry includes multiple dashboard layouts inspired by Sentry's different monitoring focuses:
+Skylark includes multiple dashboard layouts inspired by Sentry's different monitoring focuses:
 
 ### Current Template
 ![Current Dashboard](screenshot-dash-current.png)
@@ -91,7 +91,7 @@ This repo mirrors a smaller but integrated set (Django, Celery, Redis, Postgres,
 - Storage: PostgreSQL (primary relational store), Redis (cache + Celery broker/result backend).
 - Stream/OLAP: Kafka (events/sessions topics) + Snuba-like consumer → ClickHouse (OLAP for series/top groups/health).
 - Frontend: React + Vite dev server (Tailwind, dark mode), with Logs view (token search + brush), Groups/actions, Releases/Artifacts, Deployments, Release Health, and a Dashboard.
-- Client SDKs: Published npm package `mini-sentry-client` and plain JS examples (`examples/js-client`: ESM + IIFE) for apps without TS/bundlers.
+- Client SDKs: Published npm package `skylark-client` and plain JS examples (`examples/js-client`: ESM + IIFE) for apps without TS/bundlers.
 - Symbolication: Upload JS sourcemaps as release artifacts; ingest performs best-effort symbolication; UI falls back to `POST /api/symbolicate/` when needed.
 - Alerts: Email/Webhook targets, snooze/unsnooze, rate limiting and windowed thresholds.
 - Orchestration: Docker Compose services — `web`, `worker`, `beat`, `postgres`, `redis`, `kafka`, `clickhouse`, `snuba`, `frontend`.
@@ -129,7 +129,7 @@ See `examples/README.md` for commands and details.
 ```mermaid
 flowchart LR
   subgraph Client Apps
-    A[JS/React Apps\nmini-sentry-client or JS client]
+    A[JS/React Apps\nskylark-client or JS client]
   end
   subgraph Django Backend
     API[REST API / Celery]
@@ -156,7 +156,7 @@ flowchart LR
 
 ## Test Coverage & Quality Assurance 🧪
 
-Mini Sentry maintains high code quality with comprehensive test coverage across all layers:
+Skylark maintains high code quality with comprehensive test coverage across all layers:
 
 ### 📊 Test Coverage Summary
 - **208 Unit Tests** passing with **55.76% overall coverage**
@@ -262,7 +262,7 @@ npm run test:specific --name    # Specific scenario
 
 - Swagger UI (served by app): `http://localhost:8000/docs/`
 - OpenAPI spec (YAML): `docs/openapi.yaml`
-- Postman collection: `postman/mini-sentry.postman_collection.json`
+- Postman collection: `postman/skylark.postman_collection.json`
 
 Validate the spec locally:
 
@@ -280,30 +280,30 @@ Option A — Quick local client (copy file)
 - Copy `examples/react/src/miniSentry.ts` into your app and initialize once on startup:
 
 ```ts
-import { initMiniSentry, MiniSentryErrorBoundary } from './miniSentry'
-const ms = initMiniSentry({ token: '<TOKEN>', baseUrl: 'http://localhost:8000', release: '1.0.0', environment: 'development' })
+import { initSkylark, SkylarkErrorBoundary } from './miniSentry'
+const ms = initSkylark({ token: '<TOKEN>', baseUrl: 'http://localhost:8000', release: '1.0.0', environment: 'development' })
 ```
 
-Option B — Published Package: `mini-sentry-client` (recommended)
+Option B — Published Package: `skylark-client` (recommended)
 - Install the published package from npm:
 
 ```bash
-npm install mini-sentry-client
+npm install skylark-client
 ```
 
 - Initialize and (optionally) wrap your root with the provided ErrorBoundary:
 
 ```ts
-import { initMiniSentry, MiniSentryErrorBoundary } from 'mini-sentry-client'
-const ms = initMiniSentry({ token: import.meta.env.VITE_MS_TOKEN, baseUrl: '', release: '1.0.0', environment: import.meta.env.MODE })
+import { initSkylark, SkylarkErrorBoundary } from 'skylark-client'
+const ms = initSkylark({ token: import.meta.env.VITE_MS_TOKEN, baseUrl: '', release: '1.0.0', environment: import.meta.env.MODE })
 ```
 
 - Or use the CDN version for quick testing:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/mini-sentry-client/dist/index.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/skylark-client/dist/index.global.js"></script>
 <script>
-  const ms = window.MiniSentry.init({ token: 'YOUR_TOKEN', baseUrl: 'http://localhost:8000' })
+  const ms = window.Skylark.init({ token: 'YOUR_TOKEN', baseUrl: 'http://localhost:8000' })
 </script>
 ```
 
@@ -317,7 +317,7 @@ ms.sendSession('ok')          // or 'crashed'
 
 Readable stacks (sourcemaps)
 - Build your app with sourcemaps enabled (e.g., Vite `build.sourcemap = true`)
-- Create a release in Mini Sentry that matches your app’s release + environment
+- Create a release in Skylark that matches your app’s release + environment
 - Upload generated `*.js.map` files to that release (see `examples/react/upload_sourcemap.mjs`)
 - Trigger an error; click “View” on the event to see orig_file/orig_line/orig_column
 
@@ -328,7 +328,7 @@ Dev/prod tips
 
 ## Monitoring Errors (Where to look)
 
-- Mini Sentry UI: http://localhost:5173
+- Skylark UI: http://localhost:5173
   - Select a project → see “Groups” (deduplicated issues) and “Recent Events”.
   - Click “View” on an event to see stored (symbolicated) frames.
 - Django Admin: http://localhost:8000/admin
@@ -364,13 +364,13 @@ Planned enhancements: per‑level breakdowns, spike detector, release comparison
 
 ## Frontend Telemetry (Optional)
 
-By default, the main UI in `frontend/` is NOT instrumented so this repo stays portable and neutral. To test the client package end‑to‑end, use the example app in `examples/react`, which is already wired to `mini-sentry-client` and includes a sourcemap uploader.
+By default, the main UI in `frontend/` is NOT instrumented so this repo stays portable and neutral. To test the client package end‑to‑end, use the example app in `examples/react`, which is already wired to `skylark-client` and includes a sourcemap uploader.
 
 If you want to instrument your own app (or this UI) with the package:
 
 1) Build the client package locally: `cd packages/mini-sentry-client && npm i && npm run build`
 2) In your app, install it (local path): `npm i ../../packages/mini-sentry-client`
-3) Initialize once on startup and wrap your root with `MiniSentryErrorBoundary` (see the User Guide above).
+3) Initialize once on startup and wrap your root with `SkylarkErrorBoundary` (see the User Guide above).
 4) For symbolication, build with sourcemaps and upload the generated `*.map` files to a matching release + environment.
 
 Note: The UI dev server proxies `/api` to the backend container `web:8000`.

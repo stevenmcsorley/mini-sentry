@@ -42,10 +42,9 @@ export const useWebSocketEvents = ({
 
   const getWebSocketUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    // Always connect to backend server (port 8000) for WebSocket
-    const host = window.location.hostname
-    const port = '8000'
-    return `${protocol}//${host}:${port}/ws/events/${projectSlug}/`
+    // Use the page's host so it works behind the prod nginx proxy (which
+    // forwards /ws to the backend); dev proxies /ws via vite.config.
+    return `${protocol}//${window.location.host}/ws/events/${projectSlug}/`
   }, [projectSlug])
 
   const cleanup = useCallback(() => {

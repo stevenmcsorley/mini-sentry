@@ -1,9 +1,9 @@
 /*
-  @mini-sentry/client — minimal browser client for Mini Sentry backend
-  - initMiniSentry installs window error + unhandledrejection handlers
+  skylark-client — minimal browser client for the Skylark backend
+  - initSkylark / initMiniSentry install window error + unhandledrejection handlers
   - captureException / captureMessage send manual events
   - sendSession reports session health (ok/crashed)
-  - MiniSentryErrorBoundary catches React render errors
+  - SkylarkErrorBoundary / MiniSentryErrorBoundary catch React render errors
 */
 
 import React from 'react'
@@ -134,5 +134,11 @@ export class MiniSentryErrorBoundary extends React.Component<
   }
 }
 
-// For IIFE global usage, tsup will expose window.MiniSentry.init
+// For IIFE global usage, tsup will expose window.Skylark.init
 export const init = initMiniSentry
+
+// Skylark-branded aliases (preferred going forward; MiniSentry* kept for back-compat).
+export const initSkylark = initMiniSentry
+export const SkylarkErrorBoundary = MiniSentryErrorBoundary
+export type SkylarkOptions = MiniSentryOptions
+export type SkylarkClient = MiniSentryClient

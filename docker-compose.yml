@@ -15,6 +15,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - ALLOWED_HOSTS=*
       - RATE_LIMIT_EVENTS_PER_MINUTE=5000
+      - KAFKA_ENABLED=true
     volumes:
       - .:/app
     ports:
@@ -38,6 +39,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - ALLOWED_HOSTS=*
       - RATE_LIMIT_EVENTS_PER_MINUTE=5000
+      - KAFKA_ENABLED=true
     volumes:
       - .:/app
     depends_on:
@@ -59,6 +61,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - ALLOWED_HOSTS=*
       - RATE_LIMIT_EVENTS_PER_MINUTE=5000
+      - KAFKA_ENABLED=true
     volumes:
       - .:/app
     depends_on:

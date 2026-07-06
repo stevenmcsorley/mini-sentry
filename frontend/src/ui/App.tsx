@@ -16,6 +16,8 @@ import { ReleasesPage } from './components/ReleasesPage'
 import { AlertsPage } from './components/AlertsPage'
 import { ToastProvider } from './components/ui'
 import { NoProjectSelected } from './components/ui'
+import { McpPage } from './components/McpPage'
+import { WorkspaceMenu } from './auth/WorkspaceMenu'
 
 // Hooks
 import { useProjects } from './hooks/useProjects'
@@ -120,17 +122,18 @@ export const App = () => {
           {/* Header */}
           <header className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">Mini Sentry</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-white">Skylark</h1>
               <p className="text-sm text-slate-400">Error monitoring and performance tracking</p>
             </div>
-            {routing.selected && (
-              <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
+              {routing.selected && (
                 <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-4 py-2">
                   <div className="text-xs text-slate-400">Current Project</div>
                   <div className="font-medium text-white">{routing.selected.name}</div>
                 </div>
-              </div>
-            )}
+              )}
+              <WorkspaceMenu />
+            </div>
           </header>
 
           <div className="grid grid-cols-[56px_1fr] gap-6">
@@ -208,6 +211,8 @@ export const App = () => {
                   ) : (
                     <NoProjectSelected testId="logs-no-project" />
                   )
+                ) : routing.activeTab === 'mcp' ? (
+                  <McpPage />
                 ) : (
                   routing.selected ? (
                     <OverviewPage

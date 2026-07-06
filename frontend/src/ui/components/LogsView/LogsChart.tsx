@@ -67,9 +67,9 @@ export const LogsChart = ({
     
     let apiUrl = `/api/dashboard/series/?project=${selected.slug}&interval=${ib(interval)}&backend=pg`
     
-    if (customRange && customRange.from && customRange.to) {
+    if (customRange && (customRange as any).from && (customRange as any).to) {
       // Use custom range with from/to parameters
-      apiUrl += `&from=${customRange.from}&to=${customRange.to}`
+      apiUrl += `&from=${(customRange as any).from}&to=${(customRange as any).to}`
     } else {
       // Use range parameter for relative time ranges
       apiUrl += `&range=${range}`
@@ -308,14 +308,14 @@ export const LogsChart = ({
               tooltip: {
                 trigger: 'axis',
                 axisPointer: { type: 'shadow' },
-                formatter: (params: any[]) => {
+                formatter: (params: any) => {
                   if (!params?.length) return ''
                   const t = new Date(params[0].value[0])
                   const lines = [fmtDate(t.toISOString())]
                   let total = 0
-                  params.forEach(p => { total += p.value[1] })
+                  params.forEach((p: any) => { total += p.value[1] })
                   lines.push(`total: ${total}`)
-                  params.forEach(p => lines.push(`${p.seriesName}: ${p.value[1]}`))
+                  params.forEach((p: any) => lines.push(`${p.seriesName}: ${p.value[1]}`))
                   return lines.join('<br/>')
                 }
               },

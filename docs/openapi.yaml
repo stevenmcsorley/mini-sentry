@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: Mini Sentry API
+  title: Skylark API
   version: 1.0.0
   description: |
-    **Mini Sentry API** - A comprehensive, Sentry-inspired error tracking and monitoring system.
+    **Skylark API** - A comprehensive, Sentry-inspired error tracking and monitoring system.
     
     ## 🚀 Features
     - **Event Ingestion & Grouping** - Real-time error collection with intelligent deduplication
@@ -43,7 +43,7 @@ info:
     - **ClickHouse** (`ch`) - Analytics and time-series data
     
   contact:
-    name: Mini Sentry
+    name: Skylark
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -51,7 +51,7 @@ info:
 servers:
   - url: http://localhost:8000
     description: Local development server
-  - url: https://api.minisentry.example.com
+  - url: https://skylark.halfagiraf.com
     description: Production server
 
 security:
@@ -1695,6 +1695,178 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  # ---------- Auth ----------
+  /api/auth/register/:
+    post:
+      tags: [Auth]
+      summary: Register a new account (creates the user's own workspace). Gated by OPEN_SIGNUP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, password]
+              properties:
+                email: { type: string, format: email }
+                name: { type: string }
+                password: { type: string, minLength: 6 }
+                workspaceName: { type: string }
+      responses:
+        '201': { description: Session (access, refresh, user) }
+        '403': { description: Sign-up disabled }
+        '409': { description: Email already registered }
+  /api/auth/login/:
+    post:
+      tags: [Auth]
+      summary: Log in with email + password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200': { description: Session (access, refresh, user) }
+        '401': { description: Invalid credentials }
+  /api/auth/refresh/:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for a new access token
+      security: []
+      responses:
+        '200': { description: New access token }
+  /api/auth/me/:
+    get:
+      tags: [Auth]
+      summary: The current authenticated user
+      responses:
+        '200': { description: User }
+        '401': { description: Not authenticated }
+  /api/auth/config/:
+    get:
+      tags: [Auth]
+      summary: Public instance config (e.g. whether sign-up is open)
+      security: []
+      responses:
+        '200': { description: '{ openSignup: boolean }' }
+
+  # ---------- Workspaces ----------
+  /api/workspaces/:
+    get:
+      tags: [Workspaces]
+      summary: List the workspaces the caller belongs to
+      responses:
+        '200': { description: Array of workspaces with role }
+    post:
+      tags: [Workspaces]
+      summary: Create a workspace (one owned workspace per account)
+      responses:
+        '201': { description: Workspace }
+        '400': { description: Already own a workspace / invalid name }
+  /api/workspaces/current/:
+    get:
+      tags: [Workspaces]
+      summary: The current workspace (from X-Workspace-Id or the caller's first)
+      responses:
+        '200': { description: Workspace with role }
+    patch:
+      tags: [Workspaces]
+      summary: Rename the current workspace (owner/admin)
+      responses:
+        '200': { description: Workspace }
+    delete:
+      tags: [Workspaces]
+      summary: Delete the current workspace (owner only)
+      responses:
+        '204': { description: Deleted }
+  /api/workspaces/current/members/:
+    get:
+      tags: [Workspaces]
+      summary: List members of the current workspace
+      responses:
+        '200': { description: Array of members }
+  /api/workspaces/current/members/{member_id}/:
+    parameters:
+      - { name: member_id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [Workspaces]
+      summary: Change a member's role (owner/admin)
+      responses:
+        '200': { description: Member }
+    delete:
+      tags: [Workspaces]
+      summary: Remove a member (owner/admin)
+      responses:
+        '204': { description: Removed }
+  /api/workspaces/current/invites/:
+    get:
+      tags: [Workspaces]
+      summary: List pending invites (owner/admin)
+      responses:
+        '200': { description: Array of invites }
+    post:
+      tags: [Workspaces]
+      summary: Create an invite link (owner/admin)
+      responses:
+        '201': { description: Invite with token }
+  /api/workspaces/current/invites/{invite_id}/:
+    parameters:
+      - { name: invite_id, in: path, required: true, schema: { type: integer } }
+    delete:
+      tags: [Workspaces]
+      summary: Revoke an invite (owner/admin)
+      responses:
+        '204': { description: Revoked }
+  /api/invites/{token}/:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Workspaces]
+      summary: Inspect an invite (public)
+      security: []
+      responses:
+        '200': { description: Invite details (workspace_name, email, role, account_exists) }
+        '404': { description: Not found }
+  /api/invites/{token}/accept/:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Workspaces]
+      summary: Accept an invite (public). Existing accounts must supply their password.
+      security: []
+      responses:
+        '200': { description: Session (access, user) }
+        '400': { description: Already used / expired }
+        '401': { description: Password required for existing account }
+
+  # ---------- API tokens ----------
+  /api/tokens/:
+    get:
+      tags: [Tokens]
+      summary: List API tokens for the current workspace (redacted)
+      responses:
+        '200': { description: Array of tokens (preview only) }
+    post:
+      tags: [Tokens]
+      summary: Create a scoped API token — the raw value is returned once
+      responses:
+        '201': { description: Token (raw value included once) }
+  /api/tokens/{token_id}/:
+    parameters:
+      - { name: token_id, in: path, required: true, schema: { type: integer } }
+    delete:
+      tags: [Tokens]
+      summary: Revoke an API token
+      responses:
+        '204': { description: Revoked }
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -2587,3 +2759,9 @@ tags:
     description: Deployment tracking and correlation
   - name: Alerts
     description: Alert rules and notification management
+  - name: Auth
+    description: Registration, login and session management
+  - name: Workspaces
+    description: Multi-tenant workspaces, members and invites
+  - name: Tokens
+    description: Scoped API tokens for programmatic access

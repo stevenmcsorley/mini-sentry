@@ -67,4 +67,4 @@ All notable changes to this project are documented here.
 - URL state: persist view/project/search/filters/time in hash.
 - Server: `GET /api/events` supports `from`/`to` ISO params.
 - Level handling: normalize incoming levels (warn→warning, fatal→error, etc.).
-- Client: `@mini-sentry/client@0.1.1` forwards `extra.level|extra.severity` to top-level `level`.
+- Client: `@skylark/client@0.1.1` forwards `extra.level|extra.severity` to top-level `level`.

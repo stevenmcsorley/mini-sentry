@@ -7,11 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
-const api = async (path: string) => {
-  const res = await fetch(path)
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
+import { api } from './utils/api.utils'
 
 type SeriesRow = { bucket: string; error: number; warning: number; info: number }
 type ReleaseHealth = { 
@@ -89,7 +85,7 @@ export function Dashboard({ projectSlug, fromTo }: { projectSlug: string, fromTo
   }
 
   // ECharts configuration for events chart
-  const getEventsChartOption = () => ({
+  const getEventsChartOption = (): any => ({
     tooltip: {
       trigger: 'axis',
       backgroundColor: '#1e293b',

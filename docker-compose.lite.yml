@@ -1,0 +1,70 @@
+# Postgres-only lite stack — NO Kafka/ClickHouse/Snuba.
+# Proves the ingest -> Postgres -> dashboard path (the profile we ship to the Pi).
+#   docker compose -f docker-compose.lite.yml up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sentry
+      POSTGRES_PASSWORD: sentry
+      POSTGRES_DB: sentry
+    volumes:
+      - pgdata_lite:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentry -d sentry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bash", "/app/scripts/entrypoint-web.sh"]
+    environment:
+      - DJANGO_DEBUG=1
+      - SECRET_KEY=dev-secret-key
+      - DATABASE_URL=postgres://sentry:sentry@postgres:5432/sentry
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - ALLOWED_HOSTS=*
+      - RATE_LIMIT_EVENTS_PER_MINUTE=5000
+      - OPEN_SIGNUP=true
+      # KAFKA_ENABLED unset -> event pipeline stays off (Postgres-only)
+    volumes:
+      - .:/app
+    ports:
+      - "127.0.0.1:8010:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bash", "/app/scripts/entrypoint-worker.sh"]
+    environment:
+      - DJANGO_DEBUG=1
+      - SECRET_KEY=dev-secret-key
+      - DATABASE_URL=postgres://sentry:sentry@postgres:5432/sentry
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - ALLOWED_HOSTS=*
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  pgdata_lite:

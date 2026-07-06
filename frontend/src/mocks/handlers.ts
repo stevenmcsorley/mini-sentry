@@ -1,14 +1,14 @@
 import { http, HttpResponse } from 'msw'
 
 // Mock data
-export let mockProjects = []
-export let mockGroups = []
-export let mockEvents = []
-export let mockReleases = []
-export let mockRules = []
-export let mockDeployments = []
-export let mockHealth = []
-export let mockSeries = []
+export let mockProjects: any[] = []
+export let mockGroups: any[] = []
+export let mockEvents: any[] = []
+export let mockReleases: any[] = []
+export let mockRules: any[] = []
+export let mockDeployments: any[] = []
+export let mockHealth: any[] = []
+export let mockSeries: any[] = []
 
 export const resetMockData = () => {
   mockProjects = [
@@ -92,7 +92,7 @@ export const handlers = [
   }),
 
   http.post('/api/projects', async ({ request }) => {
-    const body = await request.json()
+    const body = (await request.json()) as any
     const newProject = {
       id: mockProjects.length + 1,
       name: body.name,
@@ -162,7 +162,7 @@ export const handlers = [
   }),
 
   http.post('/api/releases', async ({ request }) => {
-    const body = await request.json()
+    const body = (await request.json()) as any
     const newRelease = {
       id: mockReleases.length + 1,
       version: body.version,
@@ -202,7 +202,7 @@ export const handlers = [
   }),
 
   http.post('/api/alert-rules', async ({ request }) => {
-    const body = await request.json()
+    const body = (await request.json()) as any
     const newRule = {
       id: mockRules.length + 1,
       name: body.name,
@@ -217,7 +217,7 @@ export const handlers = [
 
   http.patch('/api/alert-rules/:id', async ({ params, request }) => {
     const { id } = params
-    const body = await request.json()
+    const body = (await request.json()) as any
     const rule = mockRules.find(r => r.id === parseInt(id as string))
     
     if (!rule) {
@@ -230,7 +230,7 @@ export const handlers = [
 
   http.post('/api/alert-rules/:id/snooze', async ({ params, request }) => {
     const { id } = params
-    const body = await request.json()
+    const body = (await request.json()) as any
     const group = mockGroups.find(g => g.id === body.group)
     if (!group) {
       return HttpResponse.json({ detail: 'No Group matches the given query.' }, { status: 404 })
@@ -255,7 +255,7 @@ export const handlers = [
   }),
 
   http.post('/api/deployments', async ({ request }) => {
-    const body = await request.json()
+    const body = (await request.json()) as any
     const newDeployment = {
       id: mockDeployments.length + 1,
       name: body.name,
@@ -275,7 +275,7 @@ export const handlers = [
     if (!project) {
       return HttpResponse.json({ detail: 'No Project matches the given query.' }, { status: 404 })
     }
-    const body = await request.json()
+    const body = (await request.json()) as any
     return HttpResponse.json({ 
       success: true, 
       sessionId: body.session_id,
@@ -285,7 +285,7 @@ export const handlers = [
 
   // Symbolication endpoint
   http.post('/api/symbolicate', async ({ request }) => {
-    const body = await request.json()
+    const body = (await request.json()) as any
     
     return HttpResponse.json({
       frames: [

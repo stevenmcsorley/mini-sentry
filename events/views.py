@@ -1,9 +1,12 @@
+import logging
+logger = logging.getLogger("events.views")
 from rest_framework import viewsets, mixins, status
 from rest_framework.pagination import LimitOffsetPagination
 import os
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
 
 from django.db.models import F
@@ -30,11 +33,26 @@ from .ratelimit import check_rate_limit
 from .kafka import publish_event
 from .ch import query_events, query_session_series, query_events_series_by_level, query_top_groups
 from .symbolication import symbolicate_frames_for_release
+from .workspaces import scope_queryset, get_scoped_project, resolve_workspace
+
+
+def _clickhouse_enabled():
+    """The ClickHouse dashboard path is only populated by the Kafka pipeline;
+    Postgres-only deployments (the Pi) default the dashboards to Postgres."""
+    return os.environ.get(
+        "CLICKHOUSE_ENABLED", os.environ.get("KAFKA_ENABLED", "false")
+    ).lower() in ("1", "true", "yes")
 
 
 class ProjectViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
     queryset = Project.objects.all().order_by("-id")
     serializer_class = ProjectSerializer
+
+    def get_queryset(self):
+        return scope_queryset(super().get_queryset(), self.request, path="workspace")
+
+    def perform_create(self, serializer):
+        serializer.save(workspace=resolve_workspace(self.request))
 
 
 class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
@@ -45,8 +63,17 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
         max_limit = int(os.environ.get("API_MAX_PAGE_SIZE", "1000"))
     pagination_class = EventPagination
 
+    def get_permissions(self):
+        # Ingest endpoints authenticate via the project's ingest token / slug,
+        # so they stay open to unauthenticated SDK clients. Everything else
+        # (list / retrieve / clickhouse) requires a logged-in user.
+        if getattr(self, "action", None) in ("ingest", "ingest_with_token"):
+            return [AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = scope_queryset(qs, self.request)
         project = self.request.query_params.get("project")
         if project:
             qs = qs.filter(project__slug=project)
@@ -182,9 +209,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 event.symbolicated = {"frames": sym}
                 event.save(update_fields=["symbolicated"])
         except Exception as e:
-            print(f"Kafka publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("event pipeline step failed: %s", e)
         # Kick off async processing (stub)
         try:
             process_event.delay(event.id)
@@ -211,9 +236,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 }
             )
         except Exception as e:
-            print(f"Kafka publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("event pipeline step failed: %s", e)
         
         # Publish to WebSocket channels for real-time updates
         try:
@@ -222,7 +245,6 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             import time
             
             channel_layer = get_channel_layer()
-            print(f"📡 [WebSocket] Channel layer available: {channel_layer is not None}")
             
             if channel_layer:
                 event_data = {
@@ -235,19 +257,15 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                     "fingerprint": group.fingerprint if group else None,
                     "timestamp": int(time.time() * 1000),
                 }
-                print(f"📡 [WebSocket] Publishing event to group 'events_{project.slug}': {event_data}")
                 
                 async_to_sync(channel_layer.group_send)(
                     f"events_{project.slug}",
                     event_data
                 )
-                print(f"✅ [WebSocket] Event published successfully")
             else:
-                print("❌ [WebSocket] No channel layer available")
+                logger.debug("no channel layer available; skipping realtime publish")
         except Exception as e:
-            print(f"❌ [WebSocket] Publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("realtime publish failed: %s", e)
         return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=["get"], url_path="clickhouse")
@@ -256,6 +274,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
         limit = int(request.query_params.get("limit", "100"))
         if not project_slug:
             return Response({"detail": "project required"}, status=400)
+        get_scoped_project(request, project_slug)  # 404 unless in the caller's workspace
         try:
             rows = query_events(project_slug, limit)
         except Exception as e:
@@ -307,9 +326,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 event.symbolicated = {"frames": sym}
                 event.save(update_fields=["symbolicated"])
         except Exception as e:
-            print(f"Kafka publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("event pipeline step failed: %s", e)
         try:
             process_event.delay(event.id)
         except Exception:
@@ -333,9 +350,7 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                 }
             )
         except Exception as e:
-            print(f"Kafka publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("event pipeline step failed: %s", e)
         
         # Publish to WebSocket channels for real-time updates
         try:
@@ -344,7 +359,6 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
             import time
             
             channel_layer = get_channel_layer()
-            print(f"📡 [WebSocket] Channel layer available: {channel_layer is not None}")
             
             if channel_layer:
                 event_data = {
@@ -357,19 +371,15 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
                     "fingerprint": group.fingerprint if group else None,
                     "timestamp": int(time.time() * 1000),
                 }
-                print(f"📡 [WebSocket] Publishing event to group 'events_{project.slug}': {event_data}")
                 
                 async_to_sync(channel_layer.group_send)(
                     f"events_{project.slug}",
                     event_data
                 )
-                print(f"✅ [WebSocket] Event published successfully")
             else:
-                print("❌ [WebSocket] No channel layer available")
+                logger.debug("no channel layer available; skipping realtime publish")
         except Exception as e:
-            print(f"❌ [WebSocket] Publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("realtime publish failed: %s", e)
         return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
 
     def _get_or_create_release(self, project: Project, payload: dict):
@@ -417,6 +427,7 @@ class GroupViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = scope_queryset(qs, self.request)
         project = self.request.query_params.get("project")
         if project:
             qs = qs.filter(project__slug=project)
@@ -528,6 +539,7 @@ class ReleaseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.Ge
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = scope_queryset(qs, self.request)
         project = self.request.query_params.get("project")
         if project:
             qs = qs.filter(project__slug=project)
@@ -552,18 +564,14 @@ class ReleaseViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.Ge
         try:
             payload["checksum"] = hashlib.sha256(payload["content"].encode("utf-8")).hexdigest()
         except Exception as e:
-            print(f"Kafka publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("event pipeline step failed: %s", e)
         try:
             obj = _json.loads(payload["content"]) if isinstance(payload["content"], str) else None
             if isinstance(obj, dict):
                 if obj.get("file"):
                     payload["file_name"] = str(obj.get("file"))
         except Exception as e:
-            print(f"Kafka publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("event pipeline step failed: %s", e)
         serializer = ArtifactSerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -597,6 +605,7 @@ class AlertRuleViewSet(
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = scope_queryset(qs, self.request)
         project = self.request.query_params.get("project")
         if project:
             qs = qs.filter(project__slug=project)
@@ -648,6 +657,8 @@ class AlertRuleViewSet(
 
 
 class SessionIngestView(APIView):
+    permission_classes = [AllowAny]  # token-authenticated ingest
+
     def post(self, request, token: str):
         project = get_object_or_404(Project, ingest_token=token)
         payload = request.data or {}
@@ -694,9 +705,7 @@ class SessionIngestView(APIView):
                 "started_at": (obj.started_at or timezone.now()).isoformat(),
             })
         except Exception as e:
-            print(f"Kafka publish error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning("event pipeline step failed: %s", e)
         return Response(SessionSerializer(obj).data, status=201 if created else 200)
 
 
@@ -706,6 +715,7 @@ class ReleaseHealthView(APIView):
         project_slug = request.query_params.get("project")
         if not project_slug:
             return Response({"detail": "project required"}, status=400)
+        get_scoped_project(request, project_slug)  # 404 unless in the caller's workspace
         project = get_object_or_404(Project, slug=project_slug)
         qs = Session.objects.filter(project=project)
         agg = (
@@ -736,6 +746,7 @@ class ReleaseHealthSeriesView(APIView):
         project_slug = request.query_params.get("project")
         if not project_slug:
             return Response({"detail": "project required"}, status=400)
+        get_scoped_project(request, project_slug)  # 404 unless in the caller's workspace
         project = get_object_or_404(Project, slug=project_slug)
         env = request.query_params.get("environment")
         version = request.query_params.get("version")
@@ -773,7 +784,8 @@ class ReleaseHealthSeriesView(APIView):
                 ]
                 return Response(out)
             except Exception as e:
-                return Response({"detail": f"clickhouse error: {e}"}, status=500)
+                logger.warning("clickhouse query failed; using postgres fallback: %s", e)
+                # fall through to the Postgres aggregation below
 
         where = ["project_id = %s", "started_at >= NOW() - INTERVAL '%s minutes'"]
         params = [project.id, minutes]
@@ -811,6 +823,7 @@ class DeploymentViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = scope_queryset(qs, self.request)
         project = self.request.query_params.get("project")
         if project:
             qs = qs.filter(project__slug=project)
@@ -822,9 +835,10 @@ class EventSeriesView(APIView):
         project_slug = request.query_params.get("project")
         if not project_slug:
             return Response({"detail": "project required"}, status=400)
+        get_scoped_project(request, project_slug)  # 404 unless in the caller's workspace
         rng = request.query_params.get("range", "1h")
         interval = request.query_params.get("interval", "5m")
-        backend = request.query_params.get("backend", "ch")
+        backend = request.query_params.get("backend", "ch" if _clickhouse_enabled() else "pg")
         from_param = request.query_params.get("from")
         to_param = request.query_params.get("to")
         env_param = request.query_params.get("env")
@@ -847,7 +861,8 @@ class EventSeriesView(APIView):
                     rows = query_events_series_by_level(project_slug, minutes=minutes, bucket=interval, environment=env_param)
                 return Response(rows)
             except Exception as e:
-                return Response({"detail": f"clickhouse error: {e}"}, status=500)
+                logger.warning("clickhouse query failed; using postgres fallback: %s", e)
+                # fall through to the Postgres aggregation below
         # PG fallback: aggregate by date_trunc
         from django.db.models.functions import TruncMinute, TruncHour
         from django.db.models import Count
@@ -882,9 +897,10 @@ class TopGroupsView(APIView):
         project_slug = request.query_params.get("project")
         if not project_slug:
             return Response({"detail": "project required"}, status=400)
+        get_scoped_project(request, project_slug)  # 404 unless in the caller's workspace
         rng = request.query_params.get("range", "24h")
         limit = int(request.query_params.get("limit", "10"))
-        backend = request.query_params.get("backend", "ch")
+        backend = request.query_params.get("backend", "ch" if _clickhouse_enabled() else "pg")
         from_param = request.query_params.get("from")
         to_param = request.query_params.get("to")
 
@@ -907,7 +923,8 @@ class TopGroupsView(APIView):
                 data = [{"fingerprint": r[0], "title": r[1], "count": int(r[2])} for r in rows]
                 return Response(data)
             except Exception as e:
-                return Response({"detail": f"clickhouse error: {e}"}, status=500)
+                logger.warning("clickhouse query failed; using postgres fallback: %s", e)
+                # fall through to the Postgres aggregation below
         # PG fallback
         from django.db.models import Count
         qs = Event.objects.filter(project__slug=project_slug)

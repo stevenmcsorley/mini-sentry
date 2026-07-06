@@ -1,0 +1,122 @@
+# Production stack for the Pi — Postgres-only (NO Kafka/ClickHouse/Snuba),
+# behind the Cloudflare tunnel. Only the frontend port is published (to localhost).
+#   cp .env.prod.example .env.prod   # then fill in secrets
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sentry
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: sentry
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentry -d sentry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1"]
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+  skylark-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bash", "/app/scripts/entrypoint-web.sh"]
+    environment:
+      DJANGO_DEBUG: "0"
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env.prod}
+      DATABASE_URL: postgres://sentry:${POSTGRES_PASSWORD}@postgres:5432/sentry
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-skylark.halfagiraf.com,localhost,127.0.0.1}
+      CORS_ALLOW_ALL_ORIGINS: "0"
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-https://skylark.halfagiraf.com}
+      CSRF_TRUSTED_ORIGINS: ${PUBLIC_ORIGIN:-https://skylark.halfagiraf.com}
+      OPEN_SIGNUP: ${OPEN_SIGNUP:-true}
+      RATE_LIMIT_EVENTS_PER_MINUTE: "5000"
+      # KAFKA_ENABLED unset -> Postgres-only ingest + dashboards
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bash", "/app/scripts/entrypoint-worker.sh"]
+    environment:
+      DJANGO_DEBUG: "0"
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: postgres://sentry:${POSTGRES_PASSWORD}@postgres:5432/sentry
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-skylark.halfagiraf.com,localhost,127.0.0.1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bash", "/app/scripts/entrypoint-beat.sh"]
+    environment:
+      DJANGO_DEBUG: "0"
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: postgres://sentry:${POSTGRES_PASSWORD}@postgres:5432/sentry
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-skylark.halfagiraf.com,localhost,127.0.0.1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: skylark-web
+    depends_on:
+      - skylark-api
+    ports:
+      # Local debug only — public traffic arrives via the Cloudflare tunnel
+      - "127.0.0.1:${WEB_PORT:-8092}:80"
+    networks:
+      - default
+      - tunnel
+    restart: unless-stopped
+    healthcheck:
+      # 127.0.0.1, not localhost — nginx:alpine resolves localhost to ::1 (IPv6-only)
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  tunnel:
+    external: true
+    name: halfagiraf_web
+
+volumes:
+  pgdata:
+  redisdata:

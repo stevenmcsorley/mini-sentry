@@ -38,6 +38,10 @@ pnpm-debug.log*
 # Build artifacts
 *.log
 
+# Celery beat schedule (runtime shelve DB, was committed by mistake)
+celerybeat-schedule
+celerybeat.pid
+
 # Frontend builds (explicit; covered by dist/ and node_modules/ but listed for clarity)
 frontend/dist/
 frontend/node_modules/

@@ -155,7 +155,7 @@ export const useAppRouting = (
       if (prev.selected) return prev // Don't change if already selected
       
       // Check localStorage for previously selected project
-      const lastProjectSlug = localStorage.getItem('mini-sentry-last-project')
+      const lastProjectSlug = localStorage.getItem('skylark-last-project')
       if (lastProjectSlug) {
         const lastProject = projects.find(p => p.slug === lastProjectSlug)
         if (lastProject) {
@@ -189,7 +189,7 @@ export const useAppRouting = (
     
     if (state.selected) {
       params.set('project', state.selected.slug)
-      localStorage.setItem('mini-sentry-last-project', state.selected.slug)
+      localStorage.setItem('skylark-last-project', state.selected.slug)
     }
     
     if (state.search) params.set('q', state.search)

@@ -58,7 +58,7 @@ export const LogsView = ({
         return !Number.isNaN(ts) && ts >= from && ts <= to
       })
     : events
-  const visibleEvents = timeFilteredEvents.filter(e => legendSel[e.level ?? 'error'] !== false)
+  const visibleEvents = timeFilteredEvents.filter(e => legendSel[(e.level ?? 'error') as keyof typeof legendSel] !== false)
 
   // WebSocket real-time events handling
   const { isConnected, reconnect, disconnect } = useWebSocketEvents({
@@ -86,7 +86,7 @@ export const LogsView = ({
           fingerprint: event.fingerprint || '',
           project: event.project || selected.slug,
           user: null,
-          tags: {},
+          tags: [],
           contexts: {},
           extra: {},
           metadata: {}
@@ -192,7 +192,7 @@ export const LogsView = ({
             <TimeRangeMenu 
               range={range} 
               setRange={setRange} 
-              setInterval={setInterval} 
+              setInterval={setInterval as (interval: string) => void}
               setTimeSel={setTimeSel} 
               onCustomRange={setCustomRange} 
             />
@@ -249,7 +249,7 @@ export const LogsView = ({
         setTimeSel={setTimeSel}
         customRange={customRange}
         legendSel={legendSel}
-        setLegendSel={setLegendSel}
+        setLegendSel={setLegendSel as (sel: any) => void}
         setFilterLevel={setFilterLevel}
         filterEnv={filterEnv}
         realtimeEvents={realTimeEnabled ? realtimeEvents : []}

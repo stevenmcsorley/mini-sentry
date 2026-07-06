@@ -13,6 +13,10 @@ export default defineConfig({
         target: 'http://web:8000',
         changeOrigin: true,
       },
+      '/ws': {
+        target: 'ws://web:8000',
+        ws: true,
+      },
     },
   },
   test: {

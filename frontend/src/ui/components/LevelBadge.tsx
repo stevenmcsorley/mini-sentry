@@ -6,6 +6,7 @@ interface LevelBadgeProps {
   level: string
   variant?: 'default' | 'compact'
   testId?: string
+  className?: string
 }
 
 const getLevelStyles = (level: string) => {
@@ -55,10 +56,11 @@ const getLevelStyles = (level: string) => {
   }
 }
 
-export const LevelBadge = ({ 
-  level, 
+export const LevelBadge = ({
+  level,
   variant = 'default',
-  testId = 'level-badge' 
+  testId = 'level-badge',
+  className = ''
 }: LevelBadgeProps) => {
   const styles = getLevelStyles(level)
   
@@ -74,7 +76,7 @@ export const LevelBadge = ({
   
   return (
     <span 
-      className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium ${styles.bg} ${styles.text} ${styles.border}`}
+      className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium ${styles.bg} ${styles.text} ${styles.border} ${className}`}
       data-testid={testId}
     >
       <span 

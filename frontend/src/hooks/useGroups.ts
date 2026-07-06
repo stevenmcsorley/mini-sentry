@@ -107,7 +107,7 @@ export const useGroups = (project: Project | null) => {
     setError(null)
     
     try {
-      await GroupService.delete(groupId)
+      await GroupService.remove(groupId)
       setGroups(prev => prev.filter(group => group.id !== groupId))
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete group'

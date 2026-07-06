@@ -409,7 +409,7 @@ export function OverviewPage({
               </div>
               
               <div data-testid="alert-targets-form">
-                <AddTargetForm ruleId={rules[0].id} onAdded={() => api(`/api/alert-rules/?project=${selected!.slug}/`).then(setRules)} />
+                <AddTargetForm ruleId={rules[0].id} onAdded={() => { /* target persisted server-side; rules refresh on next parent load */ }} />
               </div>
             </div>
           )}

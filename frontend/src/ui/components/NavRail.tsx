@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import type { ReactNode } from 'react'
 
-type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects' | 'releases' | 'alerts'
+type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects' | 'releases' | 'alerts' | 'mcp'
 
 interface NavRailProps {
   activeTab: NavigationTab
@@ -144,9 +144,11 @@ export const NavRail = ({
       <div
         className="mb-3 mt-1 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 text-sm font-bold shadow-lg shadow-emerald-500/20 transition-transform hover:scale-105"
         data-testid="nav-logo"
-        title="Mini Sentry"
+        title="Skylark"
       >
-        MS
+        <svg viewBox="0 0 32 32" className="h-5 w-5 text-white" fill="currentColor" aria-hidden="true">
+          <path d="M5 20 C 10.5 12.5, 14 13, 16 17.5 C 18 13, 21.5 12.5, 27 20 C 21.5 17, 18.2 18, 16 22 C 13.8 18, 10.5 17, 5 20 Z" />
+        </svg>
       </div>
 
       <Divider />
@@ -196,6 +198,18 @@ export const NavRail = ({
         onClick={() => onChange('projects')}
         icon={<Folder />}
         testId="nav-projects"
+      />
+
+      <NavItem
+        label="AI Agent"
+        isActive={activeTab === 'mcp'}
+        onClick={() => onChange('mcp')}
+        icon={(
+          <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+          </svg>
+        )}
+        testId="nav-mcp"
       />
 
       {/* Spacer */}

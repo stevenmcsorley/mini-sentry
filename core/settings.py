@@ -122,14 +122,31 @@ else:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "events.api_token_auth.ApiTokenAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    # Management API requires a logged-in user by default. Public surfaces
+    # (ingest, health, auth login/register/config) opt out via AllowAny.
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
 }
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=12),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
+
+# Behind the Cloudflare tunnel + nginx: trust the forwarded proto so Django
+# knows the request is HTTPS, and trust the public origin for CSRF (admin).
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o]
 
 # CORS configuration (allow local dev by default)
 # In production, set CORS_ALLOW_ALL_ORIGINS=0 and specify CORS_ALLOWED_ORIGINS

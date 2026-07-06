@@ -5,7 +5,7 @@ from .models import Event, Project, Group, Release, Artifact, AlertRule, AlertTa
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ["id", "name", "slug", "created_at", "ingest_token"]
+        fields = ["id", "name", "slug", "created_at", "ingest_token", "description"]
 
 
 class EventSerializer(serializers.ModelSerializer):

@@ -7,17 +7,19 @@ interface ProjectsTabProps {
   selected?: Project | null
   setSelected: (p: Project) => void
   onCreate: (name: string) => Promise<void> | void
+  onOpen?: (p: Project) => void
   className?: string
   testId?: string
 }
 
-export const ProjectsTab = ({ 
-  projects, 
-  selected, 
-  setSelected, 
+export const ProjectsTab = ({
+  projects,
+  selected,
+  setSelected,
   onCreate,
+  onOpen,
   className,
-  testId = 'projects-tab' 
+  testId = 'projects-tab'
 }: ProjectsTabProps) => {
   const [name, setName] = useState('My App')
   const [isCreating, setIsCreating] = useState(false)
@@ -44,7 +46,9 @@ export const ProjectsTab = ({
 
   const handleSelectProject = useCallback((project: Project) => {
     setSelected(project)
-  }, [setSelected])
+    // Open should also take you into the project (Overview), not just highlight the row.
+    onOpen?.(project)
+  }, [setSelected, onOpen])
 
   return (
     <section 

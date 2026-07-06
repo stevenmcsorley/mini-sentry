@@ -132,6 +132,88 @@ server.registerTool(
   run(async ({ name, slug }) => api('/projects/', { method: 'POST', body: { name, slug } }))
 )
 
+server.registerTool(
+  'project_overview',
+  {
+    description: 'Everything a project tracks in one manifest: its human-written description, ingest endpoint, stats (events/groups), what is actually sending data (environments, platforms, tag keys, levels — derived from recent events), releases, alert rules, configured issue-tracker integrations, and external-link count. Start here to understand a project without re-explaining it.',
+    inputSchema: { project: z.string().describe('project slug') },
+  },
+  run(async ({ project }) => api(`/projects/${encodeURIComponent(project)}/overview/`))
+)
+
+server.registerTool(
+  'describe_project',
+  {
+    description: "Set the project's description — the persistent \"what does this project track and why\" note shown to humans on the overview and to future agents here. Use it to record context so a later session isn't lost.",
+    inputSchema: { project: z.string().describe('project slug'), description: z.string() },
+  },
+  run(async ({ project, description }) =>
+    api(`/projects/${encodeURIComponent(project)}/overview/`, { method: 'PATCH', body: { description } })
+  )
+)
+
+// ---------- Tracking inventory (declared monitors) ----------
+// The MCP declares "here's what I set up to track" so humans can see, approve,
+// and ask to add/update/remove monitors. Distinct from the events that flow in.
+
+server.registerTool(
+  'list_tracking',
+  {
+    description: 'The declared monitoring inventory for a project — every place instrumented to report errors to Skylark (frontend handlers, backend filters, jobs, test hooks…), with status. This is the intent; compare against project_overview.sources to see what is actually arriving.',
+    inputSchema: { project: z.string().describe('project slug') },
+  },
+  run(async ({ project }) => api(`/projects/${encodeURIComponent(project)}/tracking/`))
+)
+
+server.registerTool(
+  'add_tracking',
+  {
+    description: "Declare a monitor you set up (or plan to). Record each instrumentation point so humans can see what's being monitored and course-correct. origin defaults to 'mcp'.",
+    inputSchema: {
+      project: z.string().describe('project slug'),
+      source: z.enum(['frontend', 'backend', 'mobile', 'infra', 'job', 'test', 'other']),
+      kind: z.string().describe('short name, e.g. "window.onerror" or "NestJS 5xx exception filter"'),
+      detail: z.string().optional().describe('what it captures / why'),
+      location: z.string().optional().describe('file path or endpoint'),
+      status: z.enum(['active', 'planned', 'removed']).optional(),
+    },
+  },
+  run(async ({ project, ...body }) =>
+    api(`/projects/${encodeURIComponent(project)}/tracking/`, { method: 'POST', body: { origin: 'mcp', ...body } })
+  )
+)
+
+server.registerTool(
+  'update_tracking',
+  {
+    description: 'Update a declared monitor (e.g. mark it active/planned/removed, edit its detail or location).',
+    inputSchema: {
+      project: z.string().describe('project slug'),
+      id: z.number(),
+      source: z.enum(['frontend', 'backend', 'mobile', 'infra', 'job', 'test', 'other']).optional(),
+      kind: z.string().optional(),
+      detail: z.string().optional(),
+      location: z.string().optional(),
+      status: z.enum(['active', 'planned', 'removed']).optional(),
+    },
+  },
+  run(async ({ project, id, ...body }) =>
+    api(`/projects/${encodeURIComponent(project)}/tracking/${id}/`, { method: 'PATCH', body })
+  )
+)
+
+server.registerTool(
+  'remove_tracking',
+  {
+    description: 'Delete a declared monitor from the inventory (use when the instrumentation is gone). To keep history instead, update_tracking status to "removed".',
+    inputSchema: { project: z.string().describe('project slug'), id: z.number() },
+  },
+  run(async ({ project, id }) => {
+    await api(`/projects/${encodeURIComponent(project)}/tracking/${id}/`, { method: 'DELETE' })
+    return { removed: id }
+  })
+)
+
 // ---------- Error groups (issues) ----------
 
 server.registerTool(

@@ -85,6 +85,9 @@ class Project(models.Model):
     workspace = models.ForeignKey(Workspace, null=True, blank=True, on_delete=models.CASCADE, related_name="projects")
     created_at = models.DateTimeField(default=timezone.now)
     ingest_token = models.CharField(max_length=64, unique=True, blank=True)
+    # Human-written "what does this project track?" notes — shown on the project
+    # overview and readable/writable by the MCP so a fresh session isn't lost.
+    description = models.TextField(blank=True, default="")
 
     def __str__(self) -> str:  # pragma: no cover
         return self.slug
@@ -93,6 +96,37 @@ class Project(models.Model):
         if not self.ingest_token:
             # 43 chars from token_urlsafe(32); cap to 48 for readability
             self.ingest_token = secrets.token_urlsafe(32)[:48]
+        return super().save(*args, **kwargs)
+
+
+class TrackingItem(models.Model):
+    """A declared monitor: 'here is a place I set up to send errors to Skylark'.
+
+    This is the intent/inventory — what SHOULD be tracked — maintained by the MCP
+    (or a human) so everyone can see what's being monitored, and compare it against
+    what data is actually arriving. Distinct from Event (the data that flows in).
+    """
+    SOURCE_CHOICES = (
+        ("frontend", "frontend"), ("backend", "backend"), ("mobile", "mobile"),
+        ("infra", "infra"), ("job", "job"), ("test", "test"), ("other", "other"),
+    )
+    STATUS_ACTIVE = "active"
+    STATUS_PLANNED = "planned"
+    STATUS_REMOVED = "removed"
+    STATUS_CHOICES = ((STATUS_ACTIVE, "active"), (STATUS_PLANNED, "planned"), (STATUS_REMOVED, "removed"))
+
+    project = models.ForeignKey("Project", on_delete=models.CASCADE, related_name="tracking_items")
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default="other")
+    kind = models.CharField(max_length=200)  # e.g. "window.onerror", "NestJS 5xx exception filter"
+    detail = models.TextField(blank=True, default="")  # what it captures / why
+    location = models.CharField(max_length=300, blank=True, default="")  # file path or endpoint
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    origin = models.CharField(max_length=20, default="mcp")  # who declared it: mcp | human
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+
+    def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
         return super().save(*args, **kwargs)
 
 

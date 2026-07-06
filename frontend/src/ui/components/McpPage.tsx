@@ -10,7 +10,8 @@ interface TokenRow {
 }
 
 const TOOL_GROUPS: Array<[string, string]> = [
-  ['Projects', 'list_projects · create_project'],
+  ['Projects', 'list_projects · create_project · project_overview · describe_project'],
+  ['Tracking inventory', 'list_tracking · add_tracking · update_tracking · remove_tracking'],
   ['Error groups', 'list_issues · get_issue · resolve / unresolve / ignore / assign / comment'],
   ['Events', 'list_events · get_event'],
   ['Stats', 'top_issues · event_series'],
@@ -107,6 +108,55 @@ export function McpPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* How to connect */}
+      <div className={card}>
+        <h2 className="mb-3 text-lg font-semibold text-white">Connect to Claude (or any MCP client)</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          The Skylark MCP server is a small Node program in <code className="text-slate-300">mini-sentry/mcp</code>.
+          Clone the repo, run <code className="text-slate-300">npm install</code> in that folder once, then point your
+          AI client at <code className="text-slate-300">mcp/index.js</code> with an API token (create one above).
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">1 · Claude Code (CLI)</p>
+            <pre className={pre}>{`claude mcp add skylark --scope user \\
+  -e SKYLARK_URL=${base} \\
+  -e SKYLARK_TOKEN=<your-api-token> \\
+  -- node /path/to/mini-sentry/mcp/index.js`}</pre>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">2 · Claude Desktop / other clients (JSON config)</p>
+            <p className="mb-1 text-xs text-slate-500">
+              Add to your client's MCP config (Claude Desktop: <code className="text-slate-400">claude_desktop_config.json</code>):
+            </p>
+            <pre className={pre}>{`{
+  "mcpServers": {
+    "skylark": {
+      "command": "node",
+      "args": ["/path/to/mini-sentry/mcp/index.js"],
+      "env": {
+        "SKYLARK_URL": "${base}",
+        "SKYLARK_TOKEN": "<your-api-token>"
+      }
+    }
+  }
+}`}</pre>
+          </div>
+
+          <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-3 text-xs text-slate-400">
+            <p className="mb-1 font-medium text-slate-300">Notes</p>
+            <ul className="list-disc space-y-1 pl-4">
+              <li>Requires <span className="text-slate-300">Node 18+</span>. Use an absolute path to <code className="text-slate-400">mcp/index.js</code>.</li>
+              <li><code className="text-slate-400">SKYLARK_TOKEN</code> is a workspace-scoped API token (preferred). Alternatively set <code className="text-slate-400">SKYLARK_EMAIL</code> + <code className="text-slate-400">SKYLARK_PASSWORD</code>.</li>
+              <li>Optional: <code className="text-slate-400">SKYLARK_WORKSPACE_ID</code> to pin a workspace (a token already implies one).</li>
+              <li>After adding, restart the client and ask it: <em className="text-slate-300">“list my Skylark projects”</em> to verify.</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       {/* What you can do */}

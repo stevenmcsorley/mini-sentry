@@ -18,6 +18,7 @@ import { ToastProvider } from './components/ui'
 import { NoProjectSelected } from './components/ui'
 import { McpPage } from './components/McpPage'
 import { IntegrationsPage } from './components/IntegrationsPage'
+import { HelpPage } from './components/HelpPage'
 import { WorkspaceMenu } from './auth/WorkspaceMenu'
 
 // Hooks
@@ -147,6 +148,7 @@ export const App = () => {
                     selected={routing.selected || projects[0]}
                     setSelected={routing.setSelected}
                     onCreate={projectService.createProject}
+                    onOpen={(p) => { routing.setSelected(p); routing.setActiveTab('overview') }}
                   />
                 ) : routing.activeTab === 'dashboard' ? (
                   routing.selected ? (
@@ -216,6 +218,8 @@ export const App = () => {
                   <McpPage />
                 ) : routing.activeTab === 'integrations' ? (
                   <IntegrationsPage />
+                ) : routing.activeTab === 'help' ? (
+                  <HelpPage />
                 ) : (
                   routing.selected ? (
                     <OverviewPage

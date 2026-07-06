@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LevelBadge } from './LevelBadge'
+import { TrackingOverview } from './TrackingOverview'
 import { AlertRuleForm } from './forms/AlertRuleForm'
 import { DeploymentForm } from './forms/DeploymentForm'
 import { ReleaseForm } from './forms/ReleaseForm'
@@ -136,6 +137,9 @@ export function OverviewPage({
           </div>
         </div>
       </div>
+
+      {/* Tracking overview — what's being monitored (declared) vs what's arriving (observed) */}
+      <TrackingOverview slug={selected.slug} />
 
       {/* Quick Actions */}
       <div data-testid="quick-actions" className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -478,9 +482,14 @@ export function OverviewPage({
       <section data-testid="groups-section" className="rounded-xl border border-slate-800/60 p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">Issue Management</h3>
-          <span className="rounded-full bg-red-500/20 px-2 py-1 text-xs text-red-300">
-            {groups.length} open issues
-          </span>
+          {(() => {
+            const open = groups.filter(g => g.status === 'unresolved').length
+            return (
+              <span className={`rounded-full px-2 py-1 text-xs ${open > 0 ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
+                {open} open {open === 1 ? 'issue' : 'issues'}
+              </span>
+            )
+          })()}
         </div>
         <p className="mb-4 text-sm text-slate-400">
           Manage and triage error groups with resolve, ignore, assign, and comment actions.

@@ -14,7 +14,7 @@ from .token_views import ApiTokensView, ApiTokenDetailView
 from .integration_views import (
     IntegrationsView, IntegrationDetailView, GroupCreateIssueView, GroupLinksView,
 )
-from .project_views import ProjectOverviewView, ProjectTrackingView, ProjectTrackingDetailView
+from .project_views import ProjectOverviewView, ProjectTrackingView, ProjectTrackingDetailView, EstateView
 
 router = DefaultRouter()
 router.register(r"projects", ProjectViewSet, basename="project")
@@ -42,6 +42,7 @@ urlpatterns = [
     path("invites/<str:token>/accept/", InviteAcceptView.as_view()),
     path("tokens/", ApiTokensView.as_view()),
     path("tokens/<int:token_id>/", ApiTokenDetailView.as_view()),
+    path("estate/", EstateView.as_view()),
     path("projects/<slug:slug>/overview/", ProjectOverviewView.as_view()),
     path("projects/<slug:slug>/tracking/", ProjectTrackingView.as_view()),
     path("projects/<slug:slug>/tracking/<int:item_id>/", ProjectTrackingDetailView.as_view()),

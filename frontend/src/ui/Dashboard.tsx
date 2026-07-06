@@ -85,6 +85,25 @@ export function Dashboard({ projectSlug, fromTo }: { projectSlug: string, fromTo
   }
 
   // ECharts configuration for events chart
+  // Map each deployment to the nearest visible time bucket so it renders as a
+  // marker line on the error chart — spikes then line up with "what shipped".
+  const deployMarkLines = () => {
+    const buckets = series.map(s => s.bucket)
+    if (!buckets.length || !deployments.length) return []
+    const times = buckets.map(b => new Date(b).getTime())
+    const min = times[0]
+    const max = times[times.length - 1]
+    const tol = times.length > 1 ? (times[1] - times[0]) : 0
+    return deployments
+      .map(d => ({ t: new Date(d.timestamp).getTime(), d }))
+      .filter(({ t }) => t >= min - tol && t <= max + tol)
+      .map(({ t, d }) => {
+        let idx = 0, best = Infinity
+        times.forEach((bt, i) => { const diff = Math.abs(bt - t); if (diff < best) { best = diff; idx = i } })
+        return { xAxis: buckets[idx], name: `${d.version}${d.environment ? ` · ${d.environment}` : ''}` }
+      })
+  }
+
   const getEventsChartOption = (): any => ({
     tooltip: {
       trigger: 'axis',
@@ -117,7 +136,19 @@ export function Dashboard({ projectSlug, fromTo }: { projectSlug: string, fromTo
         data: series.map(s => s.error),
         smooth: true,
         lineStyle: { color: '#ef4444' },
-        itemStyle: { color: '#ef4444' }
+        itemStyle: { color: '#ef4444' },
+        markLine: {
+          symbol: 'none',
+          silent: false,
+          lineStyle: { color: '#a855f7', type: 'dashed', width: 1 },
+          label: {
+            formatter: (p: any) => `🚀 ${p.name}`,
+            color: '#c4b5fd',
+            fontSize: 10,
+            position: 'insideEndTop',
+          },
+          data: deployMarkLines(),
+        },
       },
       {
         name: 'Warnings', 
@@ -160,7 +191,11 @@ export function Dashboard({ projectSlug, fromTo }: { projectSlug: string, fromTo
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-400">Crash-Free Rate</p>
-              <p className="text-2xl font-semibold text-green-400">{avgCrashFreeRate}%</p>
+              {releaseHealth.length > 0 ? (
+                <p className="text-2xl font-semibold text-green-400">{avgCrashFreeRate}%</p>
+              ) : (
+                <p className="text-2xl font-semibold text-slate-500" title="No sessions reported yet — send session pings to track crash-free rate.">—</p>
+              )}
             </div>
             <div className="rounded-full bg-green-500/10 p-2">
               <div className="h-4 w-4 rounded-full bg-green-500"></div>

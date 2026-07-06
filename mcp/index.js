@@ -133,6 +133,12 @@ server.registerTool(
 )
 
 server.registerTool(
+  'estate_overview',
+  { description: 'One-glance health of EVERY project in the workspace — unresolved counts, latest issue, last deploy, active monitors, and workspace totals. Start here to see the whole estate before drilling into one project with project_overview.' },
+  run(async () => api('/estate/'))
+)
+
+server.registerTool(
   'project_overview',
   {
     description: 'Everything a project tracks in one manifest: its human-written description, ingest endpoint, stats (events/groups), what is actually sending data (environments, platforms, tag keys, levels — derived from recent events), releases, alert rules, configured issue-tracker integrations, and external-link count. Start here to understand a project without re-explaining it.',

@@ -10,7 +10,7 @@ interface TokenRow {
 }
 
 const TOOL_GROUPS: Array<[string, string]> = [
-  ['Projects', 'list_projects · create_project · project_overview · describe_project'],
+  ['Estate & projects', 'estate_overview · list_projects · create_project · project_overview · describe_project'],
   ['Tracking inventory', 'list_tracking · add_tracking · update_tracking · remove_tracking'],
   ['Error groups', 'list_issues · get_issue · resolve / unresolve / ignore / assign / comment'],
   ['Events', 'list_events · get_event'],

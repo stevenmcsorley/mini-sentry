@@ -19,6 +19,7 @@ import { NoProjectSelected } from './components/ui'
 import { McpPage } from './components/McpPage'
 import { IntegrationsPage } from './components/IntegrationsPage'
 import { HelpPage } from './components/HelpPage'
+import { EstatePage } from './components/EstatePage'
 import { WorkspaceMenu } from './auth/WorkspaceMenu'
 
 // Hooks
@@ -142,7 +143,14 @@ export const App = () => {
             <NavRail activeTab={routing.activeTab} onChange={routing.setActiveTab} />
             <main className="min-w-0 flex-1">
               <div className="space-y-6">
-                {routing.activeTab === 'projects' ? (
+                {routing.activeTab === 'estate' ? (
+                  <EstatePage
+                    onOpen={(slug) => {
+                      const p = projects.find(pr => pr.slug === slug)
+                      if (p) { routing.setSelected(p); routing.setActiveTab('overview') }
+                    }}
+                  />
+                ) : routing.activeTab === 'projects' ? (
                   <ProjectsTab
                     projects={projects}
                     selected={routing.selected || projects[0]}

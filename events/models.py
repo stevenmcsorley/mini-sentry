@@ -80,7 +80,9 @@ class IssueLink(models.Model):
 
 
 class Project(models.Model):
-    name = models.CharField(max_length=200, unique=True)
+    # Name is unique per-workspace (see Meta), not globally — two workspaces can
+    # each have a project called "Ossicone". Slug stays globally unique (it's the URL key).
+    name = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)
     workspace = models.ForeignKey(Workspace, null=True, blank=True, on_delete=models.CASCADE, related_name="projects")
     created_at = models.DateTimeField(default=timezone.now)
@@ -88,6 +90,11 @@ class Project(models.Model):
     # Human-written "what does this project track?" notes — shown on the project
     # overview and readable/writable by the MCP so a fresh session isn't lost.
     description = models.TextField(blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["workspace", "name"], name="uniq_project_workspace_name"),
+        ]
 
     def __str__(self) -> str:  # pragma: no cover
         return self.slug

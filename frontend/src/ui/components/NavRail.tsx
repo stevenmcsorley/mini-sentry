@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import type { ReactNode } from 'react'
 
-type NavigationTab = 'logs' | 'overview' | 'dashboard' | 'projects' | 'releases' | 'alerts' | 'integrations' | 'mcp' | 'help'
+type NavigationTab = 'estate' | 'logs' | 'overview' | 'dashboard' | 'projects' | 'releases' | 'alerts' | 'integrations' | 'mcp' | 'help'
 
 interface NavRailProps {
   activeTab: NavigationTab
@@ -154,6 +154,18 @@ export const NavRail = ({
       <Divider />
 
       {/* Main navigation items */}
+      <NavItem
+        label="Estate"
+        isActive={activeTab === 'estate'}
+        onClick={() => onChange('estate')}
+        icon={(
+          <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+          </svg>
+        )}
+        testId="nav-estate"
+      />
+
       <NavItem
         label="Overview"
         isActive={activeTab === 'overview'}

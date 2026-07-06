@@ -10,7 +10,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Project, Event, Group, Release, AlertRule, Integration, IssueLink, TrackingItem
+from django.db.models import Count, Max, Q
+
+from .models import Project, Event, Group, Release, AlertRule, Integration, IssueLink, TrackingItem, ReleaseDeployment
 from .workspaces import resolve_workspace
 
 
@@ -122,6 +124,57 @@ def _overview(project, workspace):
         "external_links_total": links_total,
         "ingest_endpoint": f"/api/events/ingest/token/{project.ingest_token}/",
     }
+
+
+class EstateView(APIView):
+    """One-glance health of every project in the workspace — the morning pane."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        ws = resolve_workspace(request)
+        if not ws:
+            return Response({"projects": [], "totals": {}})
+        projects = list(Project.objects.filter(workspace=ws).order_by("name"))
+        integrations = list(Integration.objects.filter(workspace=ws).values_list("provider", flat=True))
+
+        rows = []
+        totals = {"projects": len(projects), "events_total": 0, "unresolved_total": 0}
+        for p in projects:
+            groups = Group.objects.filter(project=p)
+            unresolved = groups.filter(status=Group.STATUS_UNRESOLVED).count()
+            events_total = Event.objects.filter(project=p).count()
+            last_event = (
+                Event.objects.filter(project=p).order_by("-received_at").values_list("received_at", flat=True).first()
+            )
+            last_group = (
+                groups.order_by("-last_seen").values("title", "level", "last_seen").first()
+            )
+            last_deploy = (
+                ReleaseDeployment.objects.filter(project=p).order_by("-date_started")
+                .values("release__version", "environment", "date_started").first()
+            )
+            active_monitors = p.tracking_items.filter(status="active").count()
+            totals["events_total"] += events_total
+            totals["unresolved_total"] += unresolved
+            rows.append({
+                "id": p.id,
+                "name": p.name,
+                "slug": p.slug,
+                "description": p.description or "",
+                "events_total": events_total,
+                "unresolved": unresolved,
+                "last_event_at": last_event,
+                "latest_issue": last_group,
+                "last_deploy": (
+                    {
+                        "version": last_deploy["release__version"],
+                        "environment": last_deploy["environment"],
+                        "at": last_deploy["date_started"],
+                    } if last_deploy else None
+                ),
+                "active_monitors": active_monitors,
+            })
+        return Response({"projects": rows, "totals": totals, "integrations": integrations})
 
 
 class ProjectOverviewView(APIView):

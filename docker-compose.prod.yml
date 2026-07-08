@@ -114,6 +114,17 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  skylark-mcp:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    environment:
+      SKYLARK_URL: http://skylark-api:8000
+      PORT: 3000
+    depends_on:
+      - skylark-api
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend

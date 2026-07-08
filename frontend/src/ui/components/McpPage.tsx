@@ -51,8 +51,9 @@ export function McpPage() {
     load()
   }
 
+  const mcpUrl = `${base}/mcp`
   const command = (token: string) =>
-    `claude mcp add skylark --scope user \\\n  -e SKYLARK_URL=${base} \\\n  -e SKYLARK_TOKEN=${token} \\\n  -- node /path/to/mini-sentry/mcp/index.js`
+    `claude mcp add --transport http skylark ${mcpUrl} \\\n  --header "Authorization: Bearer ${token}"`
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -114,34 +115,29 @@ export function McpPage() {
       <div className={card}>
         <h2 className="mb-3 text-lg font-semibold text-white">Connect to Claude (or any MCP client)</h2>
         <p className="mb-4 text-sm text-slate-400">
-          The Skylark MCP server is a small Node program in <code className="text-slate-300">mini-sentry/mcp</code>.
-          Clone the repo, run <code className="text-slate-300">npm install</code> in that folder once, then point your
-          AI client at <code className="text-slate-300">mcp/index.js</code> with an API token (create one above).
+          Skylark hosts the MCP server — <span className="text-slate-200">no clone, no install</span>. Just add the URL{' '}
+          <code className="text-slate-300">{mcpUrl}</code> and an API token (create one above).
         </p>
 
         <div className="space-y-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">1 · Claude Code (CLI)</p>
-            <pre className={pre}>{`claude mcp add skylark --scope user \\
-  -e SKYLARK_URL=${base} \\
-  -e SKYLARK_TOKEN=<your-api-token> \\
-  -- node /path/to/mini-sentry/mcp/index.js`}</pre>
+            <pre className={pre}>{`claude mcp add --transport http skylark ${mcpUrl} \\
+  --header "Authorization: Bearer <your-api-token>"`}</pre>
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">2 · Claude Desktop / other clients (JSON config)</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">2 · Claude Desktop / Clawx (JSON config)</p>
             <p className="mb-1 text-xs text-slate-500">
-              Add to your client's MCP config (Claude Desktop: <code className="text-slate-400">claude_desktop_config.json</code>):
+              Uses the <code className="text-slate-400">mcp-remote</code> bridge (auto-downloaded by npx; no clone). Claude Desktop:{' '}
+              <code className="text-slate-400">claude_desktop_config.json</code>, Clawx: <code className="text-slate-400">~/.clawx/clawx.json</code>:
             </p>
             <pre className={pre}>{`{
   "mcpServers": {
     "skylark": {
-      "command": "node",
-      "args": ["/path/to/mini-sentry/mcp/index.js"],
-      "env": {
-        "SKYLARK_URL": "${base}",
-        "SKYLARK_TOKEN": "<your-api-token>"
-      }
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${mcpUrl}",
+        "--header", "Authorization: Bearer <your-api-token>"]
     }
   }
 }`}</pre>
@@ -150,9 +146,8 @@ export function McpPage() {
           <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-3 text-xs text-slate-400">
             <p className="mb-1 font-medium text-slate-300">Notes</p>
             <ul className="list-disc space-y-1 pl-4">
-              <li>Requires <span className="text-slate-300">Node 18+</span>. Use an absolute path to <code className="text-slate-400">mcp/index.js</code>.</li>
-              <li><code className="text-slate-400">SKYLARK_TOKEN</code> is a workspace-scoped API token (preferred). Alternatively set <code className="text-slate-400">SKYLARK_EMAIL</code> + <code className="text-slate-400">SKYLARK_PASSWORD</code>.</li>
-              <li>Optional: <code className="text-slate-400">SKYLARK_WORKSPACE_ID</code> to pin a workspace (a token already implies one).</li>
+              <li>The token is a workspace-scoped API token — it&apos;s all the agent needs; it&apos;s sent as the Bearer credential.</li>
+              <li>claude.ai (web): Settings → Connectors → Add custom connector, paste <code className="text-slate-400">{mcpUrl}</code>.</li>
               <li>After adding, restart the client and ask it: <em className="text-slate-300">“list my Skylark projects”</em> to verify.</li>
             </ul>
           </div>
@@ -202,9 +197,8 @@ export function McpPage() {
           </table>
         )}
         <p className="mt-3 text-xs text-slate-500">
-          Tokens are scoped to this workspace. The MCP server lives in <code className="text-slate-400">mini-sentry/mcp</code>{' '}
-          (run <code className="text-slate-400">npm install</code> once). You can also pass{' '}
-          <code className="text-slate-400">SKYLARK_EMAIL</code> + <code className="text-slate-400">SKYLARK_PASSWORD</code> instead of a token.
+          Tokens are scoped to this workspace. The MCP is hosted at <code className="text-slate-400">{mcpUrl}</code> —
+          add the URL + token to any MCP client; revoke here to cut off access instantly.
         </p>
       </div>
     </div>

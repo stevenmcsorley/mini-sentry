@@ -431,6 +431,28 @@ class EventViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Retrie
         return group
 
 
+def _close_ossicone_tickets(group):
+    """Best-effort: mark the group's linked Ossicone ticket(s) done when resolved."""
+    try:
+        from .models import Integration
+        from .integrations import get_adapter
+        ws = getattr(group.project, "workspace", None)
+        if ws is None:
+            return
+        integ = Integration.objects.filter(workspace=ws, provider="ossicone").first()
+        if not integ:
+            return
+        adapter = get_adapter("ossicone")
+        for link in group.issue_links.filter(provider="ossicone"):
+            if link.external_id:
+                try:
+                    adapter.resolve_issue(link.external_id, integ.config)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 class GroupViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = GroupSerializer
     queryset = Group.objects.all().order_by("-last_seen")
@@ -491,6 +513,7 @@ class GroupViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         g.status = Group.STATUS_RESOLVED
         g.resolved_at = timezone.now()
         g.save(update_fields=["status", "resolved_at"])
+        _close_ossicone_tickets(g)   # keep the linked ticket in step
         return Response(GroupSerializer(g).data)
 
     @action(detail=True, methods=["post"])  # /groups/{id}/unresolve/

@@ -174,7 +174,11 @@ CELERY_BEAT_SCHEDULE = {
     "cleanup-old-events-daily": {
         "task": "events.tasks.cleanup_old_events",
         "schedule": crontab(hour=3, minute=0),
-    }
+    },
+    "sync-ossicone-ticket-statuses": {
+        "task": "events.tasks.sync_ossicone_ticket_statuses",
+        "schedule": crontab(minute="*/10"),   # resolve groups when their ticket is done
+    },
 }
 
 # Email backend (console by default). Configure SMTP via env if needed.

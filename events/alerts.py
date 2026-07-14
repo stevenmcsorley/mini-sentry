@@ -40,9 +40,43 @@ def _estate_recipients() -> list:
     return [e.strip() for e in raw.split(",") if e.strip()]
 
 
+def auto_create_ticket(group: Group, reason: str):
+    """Auto-file an Ossicone bug ticket for a new or regressed error group.
+
+    Dedup is inherent: this is only called on the 'new' (first-seen) and
+    'regression' (resolved→recurrence) signals — never on ordinary repeats — so
+    each distinct error gets exactly ONE ticket, and a resolved-then-recurring
+    error opens a fresh 'Recurring' ticket. Best-effort; never blocks ingest.
+    """
+    from .models import Integration, IssueLink
+    from .integrations import get_adapter
+    ws = getattr(group.project, "workspace", None)
+    if ws is None:
+        return
+    integ = Integration.objects.filter(workspace=ws, provider="ossicone").first()
+    if integ is None:
+        return
+    # Belt-and-braces: on a 'new' signal, don't double-file if a link already exists.
+    if reason == "new" and group.issue_links.filter(provider="ossicone").exists():
+        return
+    base = os.environ.get("PUBLIC_ORIGIN", "https://skylark.halfagiraf.com").rstrip("/")
+    group._recurring = (reason == "regression")
+    try:
+        result = get_adapter("ossicone").create_issue(group, integ.config, base)
+        IssueLink.objects.create(
+            group=group, provider="ossicone",
+            url=result.get("url", ""), external_id=result.get("external_id", ""),
+            external_key=result.get("external_key", ""))
+    except Exception:
+        pass
+
+
 def notify_group_signal(group: Group, reason: str):
     """Fire a first-seen ("new") or "regression" alert without needing a per-project
     rule — the signals that actually matter. Best-effort; never blocks ingest hard."""
+    # Auto-file a bug ticket first — independent of email/webhook config.
+    auto_create_ticket(group, reason)
+
     recipients = _estate_recipients()
     webhook = os.environ.get("SKYLARK_ALERT_WEBHOOK", "").strip()
     if not recipients and not webhook:

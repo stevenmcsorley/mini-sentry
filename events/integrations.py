@@ -8,12 +8,14 @@ import requests
 
 
 def _issue_title(group):
-    return (f"[Skylark] {group.title}" or "[Skylark] error")[:250]
+    tag = "[Skylark][Recurring] " if getattr(group, "_recurring", False) else "[Skylark] "
+    return (f"{tag}{group.project.slug}: {group.title}")[:250]
 
 
 def _issue_body(group, skylark_url):
+    recur = "\n\n⚠ **This is a recurrence** — the issue was resolved and has happened again." if getattr(group, "_recurring", False) else ""
     return (
-        f"Captured by **Skylark** — level `{group.level}`, seen {group.count}×.\n\n"
+        f"Captured by **Skylark** — level `{group.level}`, seen {group.count}×.{recur}\n\n"
         f"- Project: `{group.project.slug}`\n"
         f"- Fingerprint: `{group.fingerprint}`\n"
         f"- First seen: {group.first_seen}\n"
@@ -98,6 +100,25 @@ class OssiconeAdapter(IssueTrackerAdapter):
             "external_id": str(data.get("id")),
             "external_key": data.get("key") or f"#{data.get('id')}",
         }
+
+    def issue_status(self, external_id, config):
+        """Current status of the Ossicone ticket ('todo' | 'in_progress' | 'done')."""
+        base = config["url"].rstrip("/")
+        resp = requests.get(
+            f"{base}/api/issues/{external_id}",
+            headers={"Authorization": f"Bearer {config['token']}"}, timeout=15)
+        resp.raise_for_status()
+        return resp.json().get("status")
+
+    def resolve_issue(self, external_id, config):
+        """Mark the Ossicone ticket done (used when the Skylark group is resolved)."""
+        base = config["url"].rstrip("/")
+        resp = requests.patch(
+            f"{base}/api/issues/{external_id}",
+            headers={"Authorization": f"Bearer {config['token']}", "Content-Type": "application/json"},
+            json={"status": "done"}, timeout=15)
+        resp.raise_for_status()
+        return True
 
 
 ADAPTERS = {a.key: a for a in [GitHubAdapter(), OssiconeAdapter()]}
